@@ -765,7 +765,15 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); font
     </div>
   </div>
   <div class="card" style="margin-top:0">
-    <div class="card-title">System Information</div>
+    <div class="card-title">🔧 Kobo Connection Debugger</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="runDiagnostics()">▶ Run Diagnostics</button>
+      <button class="btn btn-secondary" onclick="testSingleForm()">⬡ Test Form 6 (Training)</button>
+      <button class="btn btn-secondary" onclick="showRawSample()">{ } Show Raw Kobo Sample</button>
+    </div>
+    <div id="debugOutput" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:var(--mono);font-size:11px;color:var(--text2);white-space:pre-wrap;min-height:60px;max-height:320px;overflow-y:auto">
+Click "Run Diagnostics" to test the Kobo connection and field mapping.</div>
+  </div>
     <table class="tbl">
       <tbody>
         <tr><td style="color:var(--text2);width:200px">MIS Version</td><td>SOK-MIS v2.0.0 (Kobo-connected)</td></tr>
@@ -815,111 +823,227 @@ const FORM_UIDS  = {
   'training':       'aebdXYj7dimfAvyHsbnaLx',
 };
 
-// ── KOBO FIELD NAME MAPPING ──────────────────────────────────────
-// Maps Kobo short field names → MIS internal field names
-// Kobo returns group-prefixed names like "grp_meta/ecosystem" which
-// flattenKoboRow() strips to just "ecosystem". These aliases handle
-// any remaining mismatches between XLSForm names and MIS field names.
-const FIELD_MAP = {
-  // Governance
-  'collection_date':       'date',
-  'data_collector_name':   'collector',
-  'data_collector_org':    'org',
-  'cbo_name':              'cbo',
-  'nrgt_average':          'nrgt_score',
-  'mgmt_plan_status':      'mgmt_plan_status',
-  'trained_governance':    'trained',
-  // Conservation
-  'incident_date':         'date',
-  'reporter_name':         'ranger',
-  'crime_location':        'location',
-  'crime_type':            'incident_type',
-  'crime_gps-Latitude':    'lat',
-  'crime_gps-Longitude':   'lon',
-  'pa_name':               'area',
-  'imet_average':          'avg_score',
-  'imet_lead_assessor':    'assessor',
-  'site_gps-Latitude':     'lat',
-  'site_gps-Longitude':    'lon',
-  'site_name':             'site',
-  // Livelihoods
-  'survey_date':           'date',
-  'surveyor_name':         'collector',
-  'surveyor_org':          'org',
-  'fcs_score':             'fcs_score',
-  'fcs_category':          'fcs_category',
-  'nbl_adopted':           'nbl_adopted',
-  'green_job_created':     'green_job',
-  'income_monthly_kes':    'income_kes',
-  'bns_proxy_score':       'bns_score',
-  // Ranger
-  'patrol_date':           'date',
-  'ranger_org':            'org',
-  'patrol_team_id':        'team',
-  'lead_ranger':           'ranger',
-  'patrol_duration_hrs':   'duration_hrs',
-  'area_covered_km2':      'area_km2',
-  'welfare_avg_score':     'welfare_score',
-  // Restoration
-  'survey_date':           'date',
-  'rest_type':             'rest_type',
-  'restoration_type':      'rest_type',
-  'area_ha':               'area_value',
-  'length_km':             'area_value',
-  'area_unit':             'area_unit',
-  'veg_cover_pct':         'veg_cover_pct',
-  'survival_rate_pct':     'survival_pct',
-  'community_workers':     'community_workers',
-  'women_workers':         'women_workers',
-  'seedlings_planted':     'seedlings',
-  'species_planted':       'species',
-  // Training
-  'training_date':         'date',
-  'organising_partner':    'org',
-  'facilitator_name':      'collector',
-  'training_topic':        'topic',
-  'linked_indicator':      'indicator',
-  'total_participants':    'total',
-  'women_participants':    'women',
-  'men_participants':      'men',
-  'youth_participants':    'youth',
-  'ip_participants':       'ip',
-  'pre_test_avg':          'pre_score',
-  'post_test_avg':         'post_score',
-  'knowledge_gain_pct':    'knowledge_gain',
+// ── BUG FIX 6: Ecosystem choice NAME → display label ────────────
+// Kobo stores the choice *name* (e.g. "mau") not the label ("Mau Forest")
+const ECOSYSTEM_MAP = {
+  'mau':   'Mau Forest',
+  'tsavo': 'Tsavo',
+  'sok':   'SOK Landscape (both)',
 };
 
+// ── BUG FIX 5 & others: Choice NAME → human label maps ──────────
+const TRAINING_TOPIC_MAP = {
+  'governance':    'Inclusive Governance',
+  'hrba':          'Human Rights / HRBA',
+  'ranger_skills': 'Wildlife Crime / Ranger Skills',
+  'sustainable_ag':'Sustainable Agriculture',
+  'enterprise':    'Enterprise / NBE Skills',
+  'eco_tourism':   'Eco-Tourism Development',
+  'financial_mgt': 'Financial Management / FSTP',
+  'gbv':           'GBV Zero Tolerance / Gender',
+  'imet_nrgt':     'IMET / NRGT Assessment Tools',
+  'value_chains':  'Value Chain Development',
+  'restoration':   'Restoration Techniques',
+};
+const LINKED_IND_MAP = {
+  '1_1_2': '1.1.2 CBO Members Trained',
+  '1_3_1': '1.3.1 Human Rights Training',
+  '2_2_2': '2.2.2 Rangers Trained',
+  '3_1_2': '3.1.2 Nature+ Production',
+  '3_1_3': '3.1.3 Lead Farmers',
+  '3_3_2': '3.3.2 NBE Skills',
+};
+const CRIME_TYPE_MAP = {
+  'poaching':           'Wildlife poaching',
+  'illegal_logging':    'Illegal logging',
+  'charcoal':           'Charcoal production',
+  'illegal_cultivation':'Illegal cultivation',
+  'bushmeat':           'Bushmeat',
+  'other_crime':        'Other',
+};
+const RESTORATION_TYPE_MAP = {
+  'riparian':  'Riparian zone',
+  'forest':    'Degraded forest',
+  'rangeland': 'Rangeland',
+};
+const GENDER_MAP = {
+  'female': 'Female',
+  'male':   'Male',
+  'other':  'Non-binary/Other',
+};
+
+// ── BUG FIX 1: FIELD_MAP — no duplicate keys, split by form type ─
+// JavaScript objects silently drop duplicate keys (last-wins).
+// We now use per-form maps applied after flattening.
+const FIELD_MAP_GOVERNANCE = {
+  'collection_date':     'date',
+  'data_collector_name': 'collector',
+  'data_collector_org':  'org',
+  'cbo_name':            'cbo',
+  'nrgt_average':        'nrgt_score',
+  'trained_governance':  'trained',
+};
+const FIELD_MAP_CONSERVATION = {
+  'incident_date':     'date',
+  'reporter_name':     'ranger',
+  'crime_location':    'location',
+  'pa_name':           'area',
+  'imet_average':      'avg_score',
+  'imet_lead_assessor':'assessor',
+  'site_name':         'site',
+  'total_area_ha':     'total_ha',
+  'degraded_area_ha':  'degraded_ha',
+};
+const FIELD_MAP_LIVELIHOODS = {
+  'collection_date':     'date',
+  'survey_date':         'date',
+  'surveyor_name':       'collector',
+  'surveyor_org':        'org',
+  'income_monthly_kes':  'income_kes',
+  'bns_proxy_score':     'bns_score',
+};
+const FIELD_MAP_RANGER = {
+  'patrol_date':        'date',
+  'ranger_org':         'org',
+  'patrol_team_id':     'team',
+  'lead_ranger':        'ranger',
+  'patrol_duration_hrs':'duration_hrs',
+  'area_covered_km2':   'area_km2',
+  'welfare_avg_score':  'welfare_score',
+};
+const FIELD_MAP_RESTORATION = {
+  'survey_date':       'date',
+  'surveyor_name':     'collector',
+  'surveyor_org':      'org',
+  'restoration_type':  'rest_type',
+  'area_ha':           'area_value',
+  'survival_rate_pct': 'survival_pct',
+  'seedlings_planted': 'seedlings',
+  'species_planted':   'species',
+};
+const FIELD_MAP_TRAINING = {
+  'training_date':      'date',
+  'organising_partner': 'org',
+  'facilitator_name':   'collector',
+  'linked_indicator':   'indicator_raw',
+  'total_participants': 'total',
+  'women_participants': 'women',
+  'men_participants':   'men',
+  'youth_participants': 'youth',
+  'ip_participants':    'ip',
+  'pre_test_avg':       'pre_score',
+  'post_test_avg':      'post_score',
+  'knowledge_gain_pct': 'knowledge_gain',
+};
+const FORM_FIELD_MAPS = {
+  'governance':    FIELD_MAP_GOVERNANCE,
+  'conservation':  FIELD_MAP_CONSERVATION,
+  'livelihoods':   FIELD_MAP_LIVELIHOODS,
+  'ranger-patrol': FIELD_MAP_RANGER,
+  'restoration':   FIELD_MAP_RESTORATION,
+  'training':      FIELD_MAP_TRAINING,
+};
+
+// ── BUG FIX 2: GPS parsing ───────────────────────────────────────
+// Kobo geopoint returns a single space-separated string: "lat lon alt accuracy"
+// We must split it ourselves.
+function parseGeopoint(val) {
+  if (!val || typeof val !== 'string') return { lat: null, lon: null };
+  const parts = val.trim().split(/\s+/);
+  return { lat: parseFloat(parts[0]) || null, lon: parseFloat(parts[1]) || null };
+}
+
 // ── FLATTEN KOBO ROW ─────────────────────────────────────────────
-// Kobo returns grouped fields as "grp_meta/ecosystem" — strip the prefix.
-// Then apply FIELD_MAP aliases so MIS dashboard queries find the right keys.
-function flattenKoboRow(row) {
+function flattenKoboRow(row, formType) {
+  // 1. Strip group prefixes: "grp_meta/ecosystem" → "ecosystem"
+  //    Use FIRST occurrence when short names collide (group order: meta first)
   const flat = {};
   for (const [key, val] of Object.entries(row)) {
     const shortKey = key.includes('/') ? key.split('/').pop() : key;
-    flat[shortKey] = val;
+    if (!(shortKey in flat)) flat[shortKey] = val; // first-wins for collisions
   }
-  // Apply field name aliases
-  for (const [koboName, misName] of Object.entries(FIELD_MAP)) {
+
+  // 2. Apply per-form field name aliases
+  const fmap = FORM_FIELD_MAPS[formType] || {};
+  for (const [koboName, misName] of Object.entries(fmap)) {
     if (flat[koboName] !== undefined && flat[misName] === undefined) {
       flat[misName] = flat[koboName];
     }
   }
+
+  // 3. BUG FIX 6: Normalise ecosystem choice name → display label
+  if (flat.ecosystem) {
+    flat.ecosystem = ECOSYSTEM_MAP[flat.ecosystem] || flat.ecosystem;
+  }
+
+  // 4. BUG FIX 5: Normalise training_topic choice name → label
+  if (flat.training_topic) {
+    flat.topic = TRAINING_TOPIC_MAP[flat.training_topic] || flat.training_topic;
+  }
+
+  // 5. Normalise other choice names → labels
+  if (flat.crime_type)        flat.incident_type = CRIME_TYPE_MAP[flat.crime_type] || flat.crime_type;
+  if (flat.restoration_type)  flat.rest_type      = RESTORATION_TYPE_MAP[flat.restoration_type] || flat.restoration_type;
+  if (flat.gender)             flat.gender         = GENDER_MAP[flat.gender] || flat.gender;
+  if (flat.indicator_raw)      flat.indicator      = LINKED_IND_MAP[flat.indicator_raw] || flat.indicator_raw;
+
+  // 6. BUG FIX 7: Normalise nbl_adopted — Kobo stores 'yes'/'no', dashboard checks includes('Yes')
+  if (flat.nbl_adopted) {
+    const v = String(flat.nbl_adopted).toLowerCase();
+    if (v === 'yes' || v.includes('yes')) flat.nbl_adopted = 'Yes – since project';
+    else flat.nbl_adopted = 'No';
+  }
+
+  // 7. BUG FIX 2: Parse geopoint strings into separate lat/lon fields
+  const geoFields = ['crime_gps','site_gps','cbo_gps','start_gps','end_gps','res_gps'];
+  for (const gf of geoFields) {
+    if (flat[gf] && typeof flat[gf] === 'string') {
+      const { lat, lon } = parseGeopoint(flat[gf]);
+      flat.lat = flat.lat || lat;
+      flat.lon = flat.lon || lon;
+    }
+  }
+  // Also handle Kobo's sometimes pre-split _geolocation array
+  if (Array.isArray(row._geolocation) && row._geolocation.length >= 2) {
+    flat.lat = flat.lat || row._geolocation[0];
+    flat.lon = flat.lon || row._geolocation[1];
+  }
+
   return flat;
+}
+
+// ── BUG FIX 8: Conservation subtype routing ─────────────────────
+// Form 2 sends all records as form_type='conservation' but contains
+// wildlife_crime / imet / habitat records distinguished by report_type.
+// We remap form_type so dashboard filters work correctly.
+function resolveFormType(formType, flat) {
+  if (formType === 'conservation') {
+    const rt = flat.report_type || '';
+    if (rt === 'wildlife_crime') return 'wildlife-crime';
+    if (rt === 'imet')           return 'imet';
+    if (rt === 'habitat')        return 'habitat';
+    return 'conservation'; // fallback
+  }
+  return formType;
 }
 
 // ── BUILD key_display SUMMARY ────────────────────────────────────
 function buildKeyDisplay(flat, formType) {
   switch(formType) {
     case 'governance':
-      return `${flat.cbo||flat.cbo_name||'—'} — NRGT: ${flat.nrgt_score||flat.nrgt_average||'—'}%`;
-    case 'conservation':
-      return `${flat.incident_type||flat.report_type||'—'} — ${flat.location||flat.site||'—'}`;
+      return `${flat.cbo||'—'} — NRGT: ${flat.nrgt_score||'—'}%`;
+    case 'wildlife-crime':
+      return `${flat.incident_type||flat.crime_type||'—'} — ${flat.location||flat.crime_location||'—'}`;
+    case 'imet':
+      return `${flat.area||flat.pa_name||'—'} — IMET: ${flat.avg_score||'—'}%`;
+    case 'habitat':
+      return `${flat.site||flat.site_name||'—'} — Degraded: ${flat.degraded_ha||flat.degraded_area_ha||0} ha`;
     case 'livelihoods':
       return `${flat.village||'—'} — FCS: ${flat.fcs_score||'—'}, ${flat.gender||'—'}`;
     case 'ranger-patrol':
       return `${flat.team||flat.patrol_team_id||'—'} — HWC: ${flat.hwc_incidents||0}, Crimes: ${flat.crimes_detected||0}`;
     case 'restoration':
-      return `${flat.site||flat.site_name||'—'} — ${flat.area_value||flat.area_ha||flat.length_km||0} ${flat.area_unit||'ha'} ${flat.rest_type||flat.restoration_type||''}`;
+      return `${flat.site||flat.site_name||'—'} — ${flat.area_value||flat.area_ha||flat.length_km||0} ${flat.area_unit||'ha'} ${flat.rest_type||''}`;
     case 'training':
       return `${flat.topic||flat.training_topic||'—'} — ${flat.total||flat.total_participants||0} participants`;
     default:
@@ -933,17 +1057,21 @@ async function fetchFromKobo(formType, uid) {
   const res = await fetch(url, {
     headers: { 'Authorization': `Token ${KOBO_TOKEN}` }
   });
-  if (!res.ok) throw new Error(`Kobo API error ${res.status} for ${formType}`);
+  if (!res.ok) {
+    const txt = await res.text().catch(()=>'');
+    throw new Error(`Kobo API ${res.status} for ${formType}: ${txt.slice(0,120)}`);
+  }
   const json = await res.json();
   return (json.results || []).map(row => {
-    const flat = flattenKoboRow(row);
+    const flat  = flattenKoboRow(row, formType);
+    const ftype = resolveFormType(formType, flat); // BUG FIX 8
     return {
       ...flat,
-      form_type:    formType,
+      form_type:    ftype,
       id:           String(row._id || row.id || Date.now()),
       submitted_at: row._submission_time || row.submitted_at || '',
       synced:       true,
-      key_display:  buildKeyDisplay(flat, formType),
+      key_display:  buildKeyDisplay(flat, ftype),
     };
   });
 }
@@ -955,7 +1083,7 @@ let _dbCacheTs = 0;
 async function getDB(forceRefresh = false) {
   const now = Date.now();
 
-  // 1. Return in-memory cache if fresh
+  // 1. Return in-memory cache if fresh (5-minute TTL)
   if (!forceRefresh && _dbCache && (now - _dbCacheTs) < CACHE_TTL_MS) {
     return _dbCache;
   }
@@ -963,30 +1091,27 @@ async function getDB(forceRefresh = false) {
   if (navigator.onLine) {
     try {
       showSyncIndicator(true);
-      // Fetch all 6 forms in parallel
       const results = await Promise.all(
         Object.entries(FORM_UIDS).map(([type, uid]) => fetchFromKobo(type, uid))
       );
       const koboRecords = results.flat();
-      // Merge with local offline queue (records not yet synced to Kobo)
-      const localQueue = getQueue();
-      const merged = [...koboRecords, ...localQueue];
-      // Update caches
+      const localQueue  = getQueue();
+      const merged      = [...koboRecords, ...localQueue];
       _dbCache   = merged;
       _dbCacheTs = now;
-      localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
+      localStorage.setItem(CACHE_KEY,    JSON.stringify(merged));
       localStorage.setItem(CACHE_TS_KEY, String(now));
       localStorage.setItem('sok_last_sync', new Date().toLocaleString());
       showSyncIndicator(false);
       return merged;
     } catch (err) {
-      console.warn('Kobo fetch failed:', err);
+      console.error('Kobo fetch error:', err);
       showSyncIndicator(false);
-      showToast('⚠ Could not reach Kobo — showing cached data', 'info');
+      showToast(`⚠ Kobo error: ${err.message}`, 'error');
     }
   }
 
-  // 2. Offline or fetch failed — try localStorage cache
+  // 2. Offline / fetch failed — use localStorage cache
   const cached = localStorage.getItem(CACHE_KEY);
   if (cached) {
     _dbCache   = JSON.parse(cached);
@@ -1011,9 +1136,9 @@ function showSyncIndicator(loading) {
   }
 }
 
-// ── LOCAL WRITE HELPERS (unchanged — used by offline form submissions) ──
-function saveDB(r)  { localStorage.setItem(DB_KEY, JSON.stringify(r)); }
-function getQueue() { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
+// ── LOCAL WRITE HELPERS ───────────────────────────────────────────
+function saveDB(r)   { localStorage.setItem(DB_KEY, JSON.stringify(r)); }
+function getQueue()  { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
 function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
 function getSettings(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }
 
@@ -1566,45 +1691,124 @@ function clearAllData() {
 // ═══════════════════════════════════════════════════
 //  SEED / DEMO DATA
 // ═══════════════════════════════════════════════════
-function loadSeedData() {
-  const today = new Date();
-  const d = (offset=0) => { const dt=new Date(today); dt.setDate(dt.getDate()-offset); return dt.toISOString().slice(0,10); };
-  const seed = [
-    { form_type:'governance', date:d(5), ecosystem:'Mau Forest', cbo:'Mau CFA #1', cbo_type:'CFA', collector:'Jane Wanjiru', org:'WWF Kenya', total_members:120, women_members:55, youth_members:32, ip_members:8, women_board_pct:44, youth_board_pct:17, nrgt_score:62, mgmt_plan_status:'In progress', trained:'Yes – this reporting period', notes:'Active CBO with improving governance', key_display:'Mau CFA #1 — NRGT: 62%' },
-    { form_type:'governance', date:d(10), ecosystem:'Tsavo', cbo:'Kimana Conservancy', cbo_type:'Conservancy', collector:'Peter Mutua', org:'KWCA', total_members:85, women_members:20, youth_members:12, ip_members:0, women_board_pct:24, youth_board_pct:4, nrgt_score:48, mgmt_plan_status:'Draft completed', trained:'Yes – previously', notes:'Needs support on financial management', key_display:'Kimana Conservancy — NRGT: 48%' },
-    { form_type:'governance', date:d(3), ecosystem:'Mau Forest', cbo:'Upper Mau WRUA', cbo_type:'WRUA', collector:'Jane Wanjiru', org:'WWF Kenya', total_members:95, women_members:46, youth_members:28, ip_members:15, women_board_pct:49, youth_board_pct:29, nrgt_score:71, mgmt_plan_status:'Under implementation', trained:'Yes – this reporting period', notes:'Strong women leadership', key_display:'Upper Mau WRUA — NRGT: 71%' },
-    { form_type:'training', date:d(7), topic:'Inclusive Governance', indicator:'1.1.2 CBO Members Trained', ecosystem:'Mau Forest', venue:'Nakuru Training Centre', org:'WWF Kenya', total:32, women:15, youth:10, ip:4, pre_score:42, post_score:74, notes:'Good knowledge improvement observed', key_display:'Inclusive Governance — 32 participants' },
-    { form_type:'training', date:d(14), topic:'Human Rights / HRBA', indicator:'1.3.1 Human Rights Training', ecosystem:'Tsavo', venue:'Voi Community Hall', org:'KWCA', total:45, women:20, youth:18, ip:2, pre_score:38, post_score:71, notes:'Rangers engaged well on rights issues', key_display:'Human Rights / HRBA — 45 participants' },
-    { form_type:'training', date:d(21), topic:'Wildlife Crime / Ranger Skills', indicator:'2.2.2 Rangers Trained', ecosystem:'Tsavo', venue:'Tsavo East KWS Base', org:'TTWCA', total:28, women:6, youth:12, ip:0, pre_score:55, post_score:82, notes:'Improved patrol techniques', key_display:'Wildlife Crime / Ranger Skills — 28 participants' },
-    { form_type:'training', date:d(30), topic:'Sustainable Agriculture', indicator:'3.1.2 Nature+ Production', ecosystem:'Mau Forest', venue:'Bomet Field Station', org:'WWF Kenya', total:60, women:32, youth:25, ip:8, pre_score:30, post_score:65, notes:'High demand for follow-up training', key_display:'Sustainable Agriculture — 60 participants' },
-    { form_type:'training', date:d(35), topic:'Enterprise / NBE Skills', indicator:'3.3.2 NBE Skills', ecosystem:'Tsavo', venue:'Taveta Town Hall', org:'KWCA', total:25, women:16, youth:18, ip:1, pre_score:28, post_score:68, notes:'Women-led honey enterprise group very active', key_display:'Enterprise / NBE Skills — 25 participants' },
-    { form_type:'wildlife-crime', date:d(2), ecosystem:'Mau Forest', incident_type:'Illegal logging', location:'Njoro Block', lat:-0.38, lon:35.72, species:'', carcasses:0, logged_trees:12, charcoal_kilns:0, illegal_ha:0, action:'Patrol intervention', ranger:'Samuel Kipchoge', notes:'Chain saws confiscated', key_display:'Illegal logging — Njoro Block' },
-    { form_type:'wildlife-crime', date:d(4), ecosystem:'Tsavo', incident_type:'Wildlife poaching', location:'Tsavo East Northern', lat:-2.85, lon:38.60, species:'Elephant', carcasses:1, logged_trees:0, charcoal_kilns:0, illegal_ha:0, action:'Arrest made', ranger:'Moses Kamau', notes:'One suspect arrested', key_display:'Wildlife poaching — Tsavo East Northern' },
-    { form_type:'wildlife-crime', date:d(8), ecosystem:'Mau Forest', incident_type:'Charcoal production', location:'South Mau', lat:-0.52, lon:35.61, species:'', carcasses:0, logged_trees:0, charcoal_kilns:4, illegal_ha:0, action:'Reported to authorities', ranger:'Samuel Kipchoge', notes:'4 kilns destroyed', key_display:'Charcoal production — South Mau' },
-    { form_type:'restoration', date:d(6), ecosystem:'Mau Forest', rest_type:'Riparian zone', site:'Njoro River Bank', lat:-0.40, lon:35.73, area_value:3.2, area_unit:'km', seedlings:1200, species:'Croton, Dombeya', veg_cover_pct:22, survival_pct:78, community_workers:18, women_workers:9, surveyor:'Grace Otieno', notes:'Good germination, need deer fencing', key_display:'Njoro River Bank — 3.2 km Riparian zone' },
-    { form_type:'restoration', date:d(12), ecosystem:'Tsavo', rest_type:'Rangeland', site:'Amboseli Buffer Zone', lat:-2.65, lon:37.25, area_value:850, area_unit:'ha', seedlings:0, species:'Native grass mix', veg_cover_pct:15, survival_pct:65, community_workers:35, women_workers:14, surveyor:'David Omondi', notes:'Good rainfall this season supporting regrowth', key_display:'Amboseli Buffer Zone — 850 ha Rangeland' },
-    { form_type:'restoration', date:d(18), ecosystem:'Mau Forest', rest_type:'Degraded forest', site:'Eastern Mau Block', lat:-0.45, lon:35.80, area_value:120, area_unit:'ha', seedlings:4800, species:'Podo, Cedar, Grevillea', veg_cover_pct:35, survival_pct:82, community_workers:22, women_workers:10, surveyor:'Grace Otieno', notes:'Excellent community engagement', key_display:'Eastern Mau Block — 120 ha Degraded forest' },
-    { form_type:'ranger-patrol', date:d(1), ecosystem:'Tsavo', team:'Tsavo North Alpha', lead_ranger:'Moses Kamau', team_size:6, women_on_patrol:1, duration_hrs:8, area_km2:24, hwc_incidents:2, hwc_type:'Elephant crop raid', crimes_detected:1, arrests:0, notes:'Two elephant crop raids near Voi Settlement', key_display:'Tsavo North Alpha — HWC: 2, Crimes: 1' },
-    { form_type:'ranger-patrol', date:d(3), ecosystem:'Mau Forest', team:'Mau Forest Patrol A', lead_ranger:'Samuel Kipchoge', team_size:5, women_on_patrol:0, duration_hrs:6, area_km2:15, hwc_incidents:0, hwc_type:'None', crimes_detected:2, arrests:1, notes:'Charcoal kiln found and destroyed', key_display:'Mau Forest Patrol A — HWC: 0, Crimes: 2' },
-    { form_type:'livelihoods', date:d(9), ecosystem:'Mau Forest', village:'Njoro Village', gender:'Female', age_group:'18–35 (Youth)', ip:'No', hh_type:'Female-headed HH', fcs_score:48, livelihood:'Commercial farming', nbl_adopted:'Yes – since project', green_job:'No', value_chain:'Horticulture', income_kes:8500, training_received:'Yes – agriculture', notes:'Started selling vegetables to Nakuru market', key_display:'Njoro Village — FCS: 48, Female' },
-    { form_type:'livelihoods', date:d(11), ecosystem:'Tsavo', village:'Voi Township', gender:'Female', age_group:'18–35 (Youth)', ip:'No', hh_type:'Female-headed HH', fcs_score:42, livelihood:'Eco-tourism', nbl_adopted:'Yes – since project', green_job:'Yes', value_chain:'Eco-tourism', income_kes:12000, training_received:'Yes – enterprise/NBE', notes:'Running community campsite', key_display:'Voi Township — FCS: 42, Female' },
-    { form_type:'livelihoods', date:d(15), ecosystem:'Mau Forest', village:'Bomet Community', gender:'Male', age_group:'36–59', ip:'No', hh_type:'Male-headed HH', fcs_score:55, livelihood:'Livestock', nbl_adopted:'Yes – since project', green_job:'No', value_chain:'Livestock', income_kes:15000, training_received:'Yes – governance', notes:'Active in WRUA, improved pasture management', key_display:'Bomet Community — FCS: 55, Male' },
-    { form_type:'platform', date:d(4), platform:'Mau-Mara Ecosystem Platform', ecosystem:'Mau Forest', total_attendees:24, women:8, youth:5, ip:3, actions_agreed:4, collector:'Jane Wanjiru', notes:'Agreed on joint patrol protocol and shared management plan timeline', key_display:'Mau-Mara Ecosystem Platform — 24 attendees, 4 actions' },
-    { form_type:'platform', date:d(20), platform:'Tsavo Ecosystem Platform', ecosystem:'Tsavo', total_attendees:31, women:10, youth:6, ip:0, actions_agreed:3, collector:'Peter Mutua', notes:'Finalized conservancy zoning approach', key_display:'Tsavo Ecosystem Platform — 31 attendees, 3 actions' },
-  ];
-  seed.forEach(r => {
-    r.id = Date.now() + Math.random().toString(36).slice(2,6);
-    r.submitted_at = new Date(Date.now() - Math.random()*30*24*3600*1000).toISOString();
-    r.synced = true;
-  });
-  const db = getDB();
-  saveDB([...db, ...seed]);
-  showToast(`✓ ${seed.length} demo records loaded`, 'success');
-  renderDashboard();
-}
+
 
 function loadSeedData() {
   showToast('ℹ Data now comes live from Kobo. Use KoboCollect or Kobo web forms to submit records — they will appear here automatically.', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+//  DEBUG FUNCTIONS
+// ═══════════════════════════════════════════════════
+function dbg(msg) {
+  const el = document.getElementById('debugOutput');
+  if (el) el.textContent += msg + '\n';
+}
+function dbgClear() {
+  const el = document.getElementById('debugOutput');
+  if (el) el.textContent = '';
+}
+
+async function runDiagnostics() {
+  dbgClear();
+  dbg('═══ SOK MIS Kobo Diagnostics ═══');
+  dbg(`Timestamp : ${new Date().toISOString()}`);
+  dbg(`Online    : ${navigator.onLine}`);
+  dbg(`Token     : ${KOBO_TOKEN.slice(0,8)}...${KOBO_TOKEN.slice(-4)}`);
+  dbg('');
+
+  // Test each form
+  for (const [formType, uid] of Object.entries(FORM_UIDS)) {
+    dbg(`Testing [${formType}] uid=${uid}`);
+    try {
+      const url = `${KOBO_BASE}/${uid}/data/?format=json&limit=3`;
+      const res = await fetch(url, { headers: { 'Authorization': `Token ${KOBO_TOKEN}` } });
+      dbg(`  HTTP status : ${res.status} ${res.statusText}`);
+      if (res.ok) {
+        const json = await res.json();
+        const count = json.count || 0;
+        const sample = (json.results || []).length;
+        dbg(`  Total submissions : ${count}`);
+        dbg(`  Sample returned   : ${sample}`);
+        if (sample > 0) {
+          const keys = Object.keys(json.results[0]).filter(k => !k.startsWith('_'));
+          dbg(`  Field count : ${keys.length}`);
+          dbg(`  Sample fields : ${keys.slice(0,6).join(', ')}...`);
+        }
+      } else {
+        const txt = await res.text();
+        dbg(`  ERROR: ${txt.slice(0,200)}`);
+      }
+    } catch (err) {
+      dbg(`  NETWORK ERROR: ${err.message}`);
+      dbg(`  → Is the MIS hosted at https://? (file:// blocks API calls)`);
+    }
+    dbg('');
+  }
+
+  // Show what getDB() returns
+  dbg('─── getDB() result ───');
+  try {
+    const db = await getDB(true);
+    dbg(`Total records loaded: ${db.length}`);
+    const byType = {};
+    db.forEach(r => { byType[r.form_type] = (byType[r.form_type]||0)+1; });
+    for (const [t, c] of Object.entries(byType)) dbg(`  ${t}: ${c}`);
+  } catch(e) {
+    dbg(`getDB error: ${e.message}`);
+  }
+  dbg('');
+  dbg('═══ Diagnostics complete ═══');
+}
+
+async function testSingleForm() {
+  dbgClear();
+  dbg('Testing Form 6 – Training (aebdXYj7dimfAvyHsbnaLx)...');
+  const uid = FORM_UIDS['training'];
+  const url = `${KOBO_BASE}/${uid}/data/?format=json&limit=3`;
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': `Token ${KOBO_TOKEN}` } });
+    dbg(`HTTP ${res.status}`);
+    if (!res.ok) { dbg(await res.text()); return; }
+    const json = await res.json();
+    dbg(`Count: ${json.count}, Results: ${(json.results||[]).length}`);
+    if ((json.results||[]).length > 0) {
+      dbg('\nFirst raw record (all fields):');
+      dbg(JSON.stringify(json.results[0], null, 2).slice(0, 2000));
+      dbg('\nFlattened + mapped:');
+      const flat = flattenKoboRow(json.results[0], 'training');
+      dbg(JSON.stringify(flat, null, 2).slice(0, 1500));
+    } else {
+      dbg('No submissions found for this form yet.');
+      dbg('Submit a test record via KoboCollect or the Kobo web form, then try again.');
+    }
+  } catch(err) {
+    dbg(`ERROR: ${err.message}`);
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      dbg('');
+      dbg('CAUSE: CORS/network block.');
+      dbg('SOLUTION: The MIS must be hosted at an https:// URL.');
+      dbg('  Option A: Upload to GitHub Pages (https://your-org.github.io/sok-mis/)');
+      dbg('  Option B: Upload to Netlify (https://sok-mis.netlify.app)');
+      dbg('  Option C: Run locally with: python -m http.server 8080');
+      dbg('            Then open http://localhost:8080/SOK_MIS_KoboConnected.html');
+    }
+  }
+}
+
+async function showRawSample() {
+  dbgClear();
+  const cache = localStorage.getItem('sok_mis_kobo_cache');
+  if (cache) {
+    const records = JSON.parse(cache);
+    dbg(`Cache has ${records.length} records. Showing first 2:`);
+    records.slice(0,2).forEach((r,i) => {
+      dbg(`\n── Record ${i+1} (form_type: ${r.form_type}) ──`);
+      dbg(JSON.stringify(r, null, 2).slice(0, 1200));
+    });
+  } else {
+    dbg('No cached data. Click "Run Diagnostics" or "⟳ Sync" first.');
+  }
 }
 
 // ═══════════════════════════════════════════════════
