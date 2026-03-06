@@ -1009,6 +1009,61 @@ function flattenKoboRow(row, formType) {
     flat.lon = flat.lon || row._geolocation[1];
   }
 
+  // ── BUG FIX 9: Numeric coercion ─────────────────────────────────
+  // ALL values from Kobo API arrive as strings (e.g. "28" not 28).
+  // Arithmetic in reduce/sum will concatenate strings instead of adding.
+  // Force-convert every known numeric field to Number here.
+  const NUMERIC_FIELDS = [
+    // Training
+    'total','total_participants','women','women_participants',
+    'men','men_participants','youth','youth_participants',
+    'ip','ip_participants','duty_bearers','rights_holders',
+    'pre_score','pre_test_avg','post_score','post_test_avg',
+    'knowledge_gain','knowledge_gain_pct','training_duration_days',
+    'participant_satisfaction_avg','pct_women','pct_youth',
+    // Governance
+    'total_members','women_members','men_members','youth_members','ip_members',
+    'board_total','board_women','board_youth','board_ip',
+    'women_board_pct','youth_board_pct','pct_women_members','pct_youth_members',
+    'nrgt_score','nrgt_average','nrgt_legitimacy','nrgt_direction',
+    'nrgt_performance','nrgt_accountability',
+    'grievances_received','grievances_resolved','fstp_amount_eur',
+    // Conservation
+    'carcasses_found','carcasses','logged_trees','charcoal_kilns',
+    'illegal_cultivated_ha','illegal_ha','suspects_arrested','arrests',
+    'imet_context','imet_planning','imet_inputs','imet_process',
+    'imet_outputs','imet_outcomes','imet_average','avg_score',
+    'total_area_ha','natural_habitat_ha','degraded_area_ha','degraded_ha',
+    'restoration_area_ha','ndvi_value','pct_degraded',
+    // Livelihoods
+    'hh_size','fcs_cereals','fcs_pulses','fcs_vegetables','fcs_fruit',
+    'fcs_meat_fish','fcs_dairy','fcs_sugar','fcs_oil',
+    'fcs_score','bns_score','bns_proxy_score',
+    'income_kes','income_monthly_kes','income_nature_based_pct',
+    'nbe_monthly_revenue_kes',
+    // Ranger patrol
+    'team_size','women_on_patrol','pct_women_patrol',
+    'patrol_duration_hrs','duration_hrs','area_km2','area_covered_km2',
+    'distance_km','hwc_incidents','crop_damage_ha','livestock_killed',
+    'human_injuries','crimes_detected','suspects_arrested',
+    'snares_removed','illegal_weapons_seized',
+    'elephant_sightings','large_mammal_sightings',
+    'welfare_score','welfare_avg_score',
+    'welfare_equipment','welfare_support','welfare_safety',
+    // Restoration
+    'area_value','area_ha','length_km','seedlings','seedlings_planted',
+    'survival_pct','survival_rate_pct','veg_cover_pct','vegetation_cover_pct',
+    'ndvi_value','community_workers','women_workers','youth_workers',
+    'pct_women_workers','cumulative_area_ha','cumulative_length_km',
+    'cumulative_seedlings','soil_organic_carbon_pct',
+  ];
+  for (const f of NUMERIC_FIELDS) {
+    if (flat[f] !== undefined && flat[f] !== null && flat[f] !== '') {
+      const parsed = parseFloat(flat[f]);
+      if (!isNaN(parsed)) flat[f] = parsed;
+    }
+  }
+
   return flat;
 }
 
@@ -1054,17 +1109,34 @@ function buildKeyDisplay(flat, formType) {
 // ── FETCH ONE FORM FROM KOBO ─────────────────────────────────────
 async function fetchFromKobo(formType, uid) {
   const url = `${KOBO_BASE}/${uid}/data/?format=json&limit=30000`;
-  const res = await fetch(url, {
-    headers: { 'Authorization': `Token ${KOBO_TOKEN}` }
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: { 'Authorization': `Token ${KOBO_TOKEN}` }
+    });
+  } catch (netErr) {
+    // Network-level failure (CORS from file://, DNS failure, no internet)
+    const msg = netErr.message || String(netErr);
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('CORS')) {
+      throw new Error(`CORS/Network block on [${formType}]. Is MIS hosted at https://? (file:// is blocked)`);
+    }
+    throw new Error(`Network error on [${formType}]: ${msg}`);
+  }
+
+  if (res.status === 401) throw new Error(`[${formType}] 401 Unauthorized — check API token`);
+  if (res.status === 403) throw new Error(`[${formType}] 403 Forbidden — token lacks permission for this form`);
+  if (res.status === 404) throw new Error(`[${formType}] 404 Not Found — check Asset UID: ${uid}`);
   if (!res.ok) {
     const txt = await res.text().catch(()=>'');
-    throw new Error(`Kobo API ${res.status} for ${formType}: ${txt.slice(0,120)}`);
+    throw new Error(`[${formType}] HTTP ${res.status}: ${txt.slice(0,120)}`);
   }
+
   const json = await res.json();
+  console.log(`✓ Kobo [${formType}]: ${json.count} total, fetched ${(json.results||[]).length}`);
+
   return (json.results || []).map(row => {
     const flat  = flattenKoboRow(row, formType);
-    const ftype = resolveFormType(formType, flat); // BUG FIX 8
+    const ftype = resolveFormType(formType, flat);
     return {
       ...flat,
       form_type:    ftype,
@@ -1089,33 +1161,53 @@ async function getDB(forceRefresh = false) {
   }
 
   if (navigator.onLine) {
-    try {
-      showSyncIndicator(true);
-      const results = await Promise.all(
-        Object.entries(FORM_UIDS).map(([type, uid]) => fetchFromKobo(type, uid))
-      );
-      const koboRecords = results.flat();
-      const localQueue  = getQueue();
-      const merged      = [...koboRecords, ...localQueue];
+    // Fetch all 6 forms — use allSettled so one failure doesn't block others
+    showSyncIndicator(true);
+    const settled = await Promise.allSettled(
+      Object.entries(FORM_UIDS).map(([type, uid]) => fetchFromKobo(type, uid))
+    );
+
+    const koboRecords = [];
+    const errors = [];
+    settled.forEach((result, i) => {
+      const formType = Object.keys(FORM_UIDS)[i];
+      if (result.status === 'fulfilled') {
+        koboRecords.push(...result.value);
+      } else {
+        errors.push(`${formType}: ${result.reason?.message || result.reason}`);
+        console.error(`Kobo fetch failed for ${formType}:`, result.reason);
+      }
+    });
+
+    showSyncIndicator(false);
+
+    if (errors.length > 0 && koboRecords.length === 0) {
+      // All forms failed
+      showToast(`⚠ All Kobo fetches failed: ${errors[0]}`, 'error');
+      console.error('All Kobo fetches failed:', errors);
+    } else if (errors.length > 0) {
+      // Partial success
+      showToast(`⚠ ${errors.length} form(s) failed to load — showing partial data`, 'info');
+      console.warn('Partial Kobo fetch errors:', errors);
+    }
+
+    if (koboRecords.length > 0 || errors.length === 0) {
+      const merged = [...koboRecords, ...getQueue()];
       _dbCache   = merged;
       _dbCacheTs = now;
       localStorage.setItem(CACHE_KEY,    JSON.stringify(merged));
       localStorage.setItem(CACHE_TS_KEY, String(now));
       localStorage.setItem('sok_last_sync', new Date().toLocaleString());
-      showSyncIndicator(false);
       return merged;
-    } catch (err) {
-      console.error('Kobo fetch error:', err);
-      showSyncIndicator(false);
-      showToast(`⚠ Kobo error: ${err.message}`, 'error');
     }
   }
 
-  // 2. Offline / fetch failed — use localStorage cache
+  // 2. Offline / all fetches failed — use localStorage cache
   const cached = localStorage.getItem(CACHE_KEY);
   if (cached) {
     _dbCache   = JSON.parse(cached);
     _dbCacheTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+    showToast('Showing cached data from last successful sync', 'info');
     return [..._dbCache, ...getQueue()];
   }
 
