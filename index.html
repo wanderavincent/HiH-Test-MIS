@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SOK MIS — Southern Kenya Landscapes</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #0d1117;
+  --bg2:      #161b22;
+  --bg3:      #21262d;
+  --border:   #30363d;
+  --border2:  #444c56;
+  --text:     #e6edf3;
+  --text2:    #8b949e;
+  --text3:    #6e7681;
+  --blue:     #388bfd;
+  --blue2:    #1f6feb;
+  --green:    #3fb950;
+  --green2:   #238636;
+  --orange:   #e3b341;
+  --orange2:  #9e6a03;
+  --red:      #f85149;
+  --purple:   #a371f7;
+  --teal:     #39d353;
+  --accent:   #58a6ff;
+  --radius:   8px;
+  --font:     'IBM Plex Sans', sans-serif;
+  --mono:     'IBM Plex Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ── LAYOUT ── */
+.app { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: 52px 1fr; height: 100vh; }
+.topbar { grid-column: 1/-1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 16px; }
+.topbar .logo { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 1px; }
+.topbar .logo span { color: var(--green); }
+.topbar .sync-status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+.sync-dot.offline { background: var(--orange); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.topbar .pending-badge { background: var(--orange2); color: var(--orange); font-size: 11px; padding: 2px 8px; border-radius: 20px; font-family: var(--mono); }
+
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px 0; }
+.sidebar-section { padding: 6px 12px 2px; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-top: 8px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; border-radius: 6px; margin: 1px 6px; color: var(--text2); font-size: 13px; transition: all .15s; }
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: rgba(56,139,253,.15); color: var(--accent); border-left: 2px solid var(--accent); padding-left: 14px; }
+.nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
+.nav-item .badge { margin-left: auto; background: var(--bg3); border: 1px solid var(--border); font-size: 10px; padding: 1px 6px; border-radius: 10px; font-family: var(--mono); color: var(--text3); }
+
+.main { overflow-y: auto; background: var(--bg); }
+.view { display: none; padding: 24px; min-height: calc(100vh - 52px); }
+.view.active { display: block; }
+
+/* ── TYPOGRAPHY ── */
+.page-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.page-sub   { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+
+/* ── CARDS ── */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+
+/* ── STAT GRID ── */
+.stat-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.stat .val { font-size: 28px; font-weight: 700; font-family: var(--mono); }
+.stat .lbl { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.stat .chg { font-size: 11px; margin-top: 6px; }
+.chg.up { color: var(--green); }
+.chg.dn { color: var(--red); }
+.chg.nt { color: var(--text3); }
+.stat.blue   { border-top: 2px solid var(--blue); }
+.stat.green  { border-top: 2px solid var(--green); }
+.stat.orange { border-top: 2px solid var(--orange); }
+.stat.purple { border-top: 2px solid var(--purple); }
+
+/* ── CHART GRID ── */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.chart-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.chart-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.chart-wrap canvas { max-height: 220px; }
+
+/* ── PROGRESS BARS ── */
+.prog-row { margin-bottom: 12px; }
+.prog-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+.prog-meta span:first-child { color: var(--text2); }
+.prog-meta span:last-child { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+.prog-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.fill-blue   { background: var(--blue); }
+.fill-green  { background: var(--green); }
+.fill-orange { background: var(--orange); }
+.fill-purple { background: var(--purple); }
+
+/* ── TABLES ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { background: var(--bg3); color: var(--text2); padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.tbl tr:hover td { background: rgba(255,255,255,.03); }
+.tbl tr:last-child td { border-bottom: none; }
+
+/* ── FORMS ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.form-full { grid-column: 1/-1; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; color: var(--text2); font-weight: 500; }
+.field input, .field select, .field textarea {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 9px 12px; font-size: 13px; font-family: var(--font);
+  transition: border-color .15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.field select option { background: var(--bg3); }
+.required { color: var(--red); }
+
+.form-section { margin-bottom: 24px; }
+.form-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3); padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+/* ── BUTTONS ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; font-family: var(--font); }
+.btn-primary { background: var(--green2); border-color: var(--green); color: white; }
+.btn-primary:hover { background: #2ea043; }
+.btn-secondary { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+.btn-secondary:hover { background: #2d333b; }
+.btn-danger { background: transparent; border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(248,81,73,.1); }
+.btn-icon { padding: 6px 10px; font-size: 13px; }
+.btn-row { display: flex; gap: 10px; margin-top: 20px; }
+
+/* ── TAGS / BADGES ── */
+.tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.tag-gov    { background: rgba(56,139,253,.15); color: var(--blue); border: 1px solid rgba(56,139,253,.3); }
+.tag-con    { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+.tag-eco    { background: rgba(227,179,65,.15); color: var(--orange); border: 1px solid rgba(227,179,65,.3); }
+.tag-cross  { background: rgba(163,113,247,.15); color: var(--purple); border: 1px solid rgba(163,113,247,.3); }
+.tag-impact { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
+.tag-green  { background: rgba(63,185,80,.15); color: var(--green); }
+.tag-orange { background: rgba(227,179,65,.15); color: var(--orange); }
+.tag-red    { background: rgba(248,81,73,.15); color: var(--red); }
+.tag-pending{ background: rgba(227,179,65,.15); color: var(--orange); border:1px solid rgba(227,179,65,.3); }
+.tag-synced { background: rgba(63,185,80,.15); color: var(--green); border:1px solid rgba(63,185,80,.3); }
+
+/* ── ALERT ── */
+.alert { border-radius: 6px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+.alert-info { background: rgba(56,139,253,.1); border: 1px solid rgba(56,139,253,.3); color: var(--blue); }
+.alert-success { background: rgba(63,185,80,.1); border: 1px solid rgba(63,185,80,.3); color: var(--green); }
+.alert-warn { background: rgba(227,179,65,.1); border: 1px solid rgba(227,179,65,.3); color: var(--orange); }
+.alert span { font-size: 16px; }
+
+/* ── TABS ── */
+.tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; gap: 2px; }
+.tab { padding: 10px 16px; font-size: 13px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+/* ── OFFLINE QUEUE ── */
+.queue-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; background: var(--bg2); }
+.queue-item .qi-info { flex: 1; }
+.queue-item .qi-form { font-size: 12px; font-weight: 600; }
+.queue-item .qi-time { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* ── MAP PLACEHOLDER ── */
+.map-placeholder { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); height: 280px; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; position: relative; overflow: hidden; }
+.map-dots { position: absolute; inset: 0; }
+.map-dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
+.map-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .4; animation: ripple 2s infinite; }
+@keyframes ripple { 0%{transform:scale(1);opacity:.4} 100%{transform:scale(2.5);opacity:0} }
+.map-dot:hover .map-tooltip { display: block; }
+.map-tooltip { display: none; position: absolute; left: 14px; top: -4px; background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; color: var(--text); }
+
+/* ── FORM TABS ── */
+.form-tab-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.form-tab { padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 1px solid var(--border); color: var(--text2); transition: all .15s; }
+.form-tab:hover { border-color: var(--border2); color: var(--text); }
+.form-tab.active { background: rgba(56,139,253,.15); border-color: var(--accent); color: var(--accent); }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 13px; z-index: 1000; transform: translateY(80px); opacity: 0; transition: all .3s; max-width: 320px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--blue); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 52px 48px 1fr; }
+  .sidebar { grid-row: 2; grid-column: 1; border-right: none; border-bottom: 1px solid var(--border); overflow-x: auto; white-space: nowrap; display: flex; padding: 0 8px; align-items: center; }
+  .sidebar-section { display: none; }
+  .nav-item { display: inline-flex; padding: 8px 12px; margin: 2px; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .chart-grid, .chart-grid.three { grid-template-columns: 1fr; }
+  .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ── TOPBAR ── -->
+<header class="topbar">
+  <div class="logo">SOK<span>/</span>MIS</div>
+  <div class="topbar-kobo" style="font-size:11px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);color:var(--green);padding:3px 10px;border-radius:4px;font-family:var(--mono)">⬡ Kobo Connected</div>
+  <div class="sync-status" id="syncStatus">
+    <div class="sync-dot" id="syncDot"></div>
+    <span id="syncLabel">Online</span>
+    <span class="pending-badge" id="pendingBadge" style="display:none">0 pending</span>
+  </div>
+  <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px" onclick="syncNow()">⟳ Sync</button>
+</header>
+
+<!-- ── SIDEBAR ── -->
+<nav class="sidebar">
+  <div class="sidebar-section">Overview</div>
+  <div class="nav-item active" onclick="nav('dashboard')"><span class="icon">▦</span> Dashboard</div>
+  <div class="nav-item" onclick="nav('map')"><span class="icon">◉</span> Field Map</div>
+
+  <div class="sidebar-section">Data Collection</div>
+  <div class="nav-item" onclick="nav('form-governance')"><span class="icon">⊞</span> Governance Form <span class="badge tag-gov" style="padding:1px 5px;font-size:9px">SO1</span></div>
+  <div class="nav-item" onclick="nav('form-conservation')"><span class="icon">⊞</span> Conservation Form <span class="badge tag-con" style="padding:1px 5px;font-size:9px">SO2</span></div>
+  <div class="nav-item" onclick="nav('form-livelihoods')"><span class="icon">⊞</span> Livelihoods Form <span class="badge tag-eco" style="padding:1px 5px;font-size:9px">SO3</span></div>
+  <div class="nav-item" onclick="nav('form-ranger')"><span class="icon">⊞</span> Ranger Patrol Form</div>
+  <div class="nav-item" onclick="nav('form-restoration')"><span class="icon">⊞</span> Restoration Form</div>
+  <div class="nav-item" onclick="nav('form-training')"><span class="icon">⊞</span> Training Form</div>
+
+  <div class="sidebar-section">Database</div>
+  <div class="nav-item" onclick="nav('database')"><span class="icon">⊟</span> Records</div>
+  <div class="nav-item" onclick="nav('indicators')"><span class="icon">◈</span> Indicators</div>
+  <div class="nav-item" onclick="nav('offline-queue')"><span class="icon">⏱</span> Offline Queue <span class="badge" id="queueBadge">0</span></div>
+
+  <div class="sidebar-section">Admin</div>
+  <div class="nav-item" onclick="nav('settings')"><span class="icon">⚙</span> Settings</div>
+</nav>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+<!-- ════════════════ DASHBOARD ════════════════ -->
+<section class="view active" id="view-dashboard">
+  <div class="page-title">Dashboard</div>
+  <div class="page-sub">Live summary of project indicators — Mau Forest &amp; Tsavo Ecosystems</div>
+
+  <div class="stat-grid">
+    <div class="stat blue">
+      <div class="val" id="stat-records">0</div>
+      <div class="lbl">Total Records Collected</div>
+      <div class="chg nt" id="stat-records-chg">across all forms</div>
+    </div>
+    <div class="stat green">
+      <div class="val" id="stat-people">0</div>
+      <div class="lbl">People Reached</div>
+      <div class="chg up" id="stat-people-chg">↑ target: 26,000</div>
+    </div>
+    <div class="stat orange">
+      <div class="val" id="stat-ha">0 ha</div>
+      <div class="lbl">Hectares Under Restoration</div>
+      <div class="chg nt">target: 7,700 ha</div>
+    </div>
+    <div class="stat purple">
+      <div class="val" id="stat-cbos">0</div>
+      <div class="lbl">CBOs with Improved Governance</div>
+      <div class="chg nt">target: 13</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-wrap">
+      <div class="card-title">Output Progress vs. Targets</div>
+      <canvas id="chart-progress"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div class="card-title">Data Collection by Month</div>
+      <canvas id="chart-monthly"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-grid three">
+    <div class="chart-wrap">
+      <div class="card-title">Gender Disaggregation — Trained Participants</div>
+      <canvas id="chart-gender"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div class="card-title">Wildlife Crime Incidents (Mau &amp; Tsavo)</div>
+      <canvas id="chart-crime"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div class="card-title">Form Submissions by Type</div>
+      <canvas id="chart-forms"></canvas>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card">
+      <div class="card-title">SO Indicator Progress</div>
+      <div id="indicator-progress"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Recent Submissions</div>
+      <table class="tbl" id="recent-table">
+        <thead><tr><th>Form</th><th>Site</th><th>By</th><th>When</th><th>Status</th></tr></thead>
+        <tbody id="recent-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ MAP ════════════════ -->
+<section class="view" id="view-map">
+  <div class="page-title">Field Map</div>
+  <div class="page-sub">Site locations across Mau Forest and Tsavo ecosystems</div>
+  <div class="alert alert-info"><span>ℹ</span> Interactive mapping requires GPS-enabled device. Dots represent recorded field data collection sites.</div>
+  <div class="map-placeholder">
+    <div class="map-dots" id="mapDots"></div>
+    <span style="z-index:1;color:var(--text3);font-size:12px">Mau–Mara | Tsavo Landscape — Southern Kenya</span>
+  </div>
+  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px" id="mapStats"></div>
+</section>
+
+<!-- ════════════════ GOVERNANCE FORM ════════════════ -->
+<section class="view" id="view-form-governance">
+  <div class="page-title">Governance Data Collection <span class="tag tag-gov">SO1</span></div>
+  <div class="page-sub">CBO capacity, platform meetings, governance scores — works offline</div>
+  <div class="alert alert-warn" id="offlineAlert-governance" style="display:none"><span>⚠</span> You are offline. This record will be saved locally and synced when connectivity is restored.</div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchFormTab(this,'gtab-cbo')">CBO Capacity</div>
+    <div class="tab" onclick="switchFormTab(this,'gtab-platform')">Platform Meeting</div>
+    <div class="tab" onclick="switchFormTab(this,'gtab-nrgt')">NRGT Score</div>
+  </div>
+
+  <!-- CBO CAPACITY TAB -->
+  <div id="gtab-cbo">
+    <div class="form-section">
+      <div class="form-section-title">Context</div>
+      <div class="form-grid">
+        <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="g-date" required/></div>
+        <div class="field"><label>Ecosystem <span class="required">*</span></label>
+          <select id="g-eco"><option value="">-- Select --</option><option>Mau Forest</option><option>Tsavo</option><option>SOK Landscape</option></select></div>
+        <div class="field"><label>CBO Name <span class="required">*</span></label>
+          <select id="g-cbo"><option value="">-- Select --</option>
+            <option>Mau CFA #1</option><option>Mau CFA #2</option><option>Upper Mau WRUA</option>
+            <option>Tsavo Conservancy A</option><option>Tsavo Conservancy B</option>
+            <option>Kimana Conservancy</option><option>Tsavo East CBO</option></select></div>
+        <div class="field"><label>CBO Type</label>
+          <select id="g-cbotype"><option>CFA</option><option>WRUA</option><option>Conservancy</option><option>Other</option></select></div>
+        <div class="field"><label>Data Collector <span class="required">*</span></label><input type="text" id="g-collector" placeholder="Full name"/></div>
+        <div class="field"><label>Organisation</label>
+          <select id="g-org"><option>WWF Kenya</option><option>KWCA</option><option>TTWCA</option><option>Rhino Ark</option><option>CIFOR-ICRAF</option></select></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">Membership &amp; Representation (Indicator 1.1.3, SO1.1.2)</div>
+      <div class="form-grid three">
+        <div class="field"><label>Total Registered Members</label><input type="number" id="g-total" min="0"/></div>
+        <div class="field"><label>Women Members (#)</label><input type="number" id="g-women" min="0"/></div>
+        <div class="field"><label>Youth Members (#)</label><input type="number" id="g-youth" min="0"/></div>
+        <div class="field"><label>IP/Minority Members (#)</label><input type="number" id="g-ip" min="0"/></div>
+        <div class="field"><label>Women in Board/Mgt (%)</label><input type="number" id="g-women-board" min="0" max="100"/></div>
+        <div class="field"><label>Youth in Board/Mgt (%)</label><input type="number" id="g-youth-board" min="0" max="100"/></div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">Governance Capacity (Indicator 1.1.1)</div>
+      <div class="form-grid">
+        <div class="field"><label>NRGT Capacity Score (0–100)</label><input type="number" id="g-nrgt" min="0" max="100"/></div>
+        <div class="field"><label>Management Plan Status</label>
+          <select id="g-plan"><option>Not started</option><option>In progress</option><option>Draft completed</option><option>Adopted</option><option>Under implementation</option></select></div>
+        <div class="field"><label>CBO Trained on Inclusive Governance?</label>
+          <select id="g-trained"><option>No</option><option>Yes – this reporting period</option><option>Yes – previously</option></select></div>
+        <div class="field"><label>Training Date (if applicable)</label><input type="date" id="g-train-date"/></div>
+        <div class="form-full field"><label>Observations / Key Issues</label><textarea id="g-notes" placeholder="Describe any governance challenges, achievements or context..."></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('governance')">💾 Save Record</button>
+      <button class="btn btn-secondary" onclick="clearForm('governance')">Clear</button>
+    </div>
+  </div>
+
+  <!-- PLATFORM TAB -->
+  <div id="gtab-platform" style="display:none">
+    <div class="form-section">
+      <div class="form-section-title">Platform Meeting Record (Indicator 1.2.2)</div>
+      <div class="form-grid">
+        <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="gp-date"/></div>
+        <div class="field"><label>Platform</label>
+          <select id="gp-platform"><option>Mau-Mara Ecosystem Platform</option><option>Tsavo Ecosystem Platform</option><option>SOK Landscape Platform</option></select></div>
+        <div class="field"><label>Total Attendees</label><input type="number" id="gp-total" min="0"/></div>
+        <div class="field"><label>Women Attendees (#)</label><input type="number" id="gp-women" min="0"/></div>
+        <div class="field"><label>Youth Attendees (#)</label><input type="number" id="gp-youth" min="0"/></div>
+        <div class="field"><label>IP Attendees (#)</label><input type="number" id="gp-ip" min="0"/></div>
+        <div class="field"><label>Coordinated Actions Agreed (#)</label><input type="number" id="gp-actions" min="0"/></div>
+        <div class="field"><label>Collector</label><input type="text" id="gp-collector"/></div>
+        <div class="form-full field"><label>Meeting Outcomes / Decisions</label><textarea id="gp-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('platform')">💾 Save Record</button>
+      <button class="btn btn-secondary" onclick="clearForm('platform')">Clear</button>
+    </div>
+  </div>
+
+  <!-- NRGT TAB -->
+  <div id="gtab-nrgt" style="display:none">
+    <div class="form-section">
+      <div class="form-section-title">NRGT Governance Score (SO1 Indicator 1.1)</div>
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" id="gn-date"/></div>
+        <div class="field"><label>Ecosystem</label><select id="gn-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+        <div class="field"><label>CBO</label><input type="text" id="gn-cbo"/></div>
+        <div class="field"><label>Legitimacy &amp; Voice Score (%)</label><input type="number" id="gn-lv" min="0" max="100"/></div>
+        <div class="field"><label>Direction Score (%)</label><input type="number" id="gn-dir" min="0" max="100"/></div>
+        <div class="field"><label>Performance Score (%)</label><input type="number" id="gn-perf" min="0" max="100"/></div>
+        <div class="field"><label>Accountability Score (%)</label><input type="number" id="gn-acc" min="0" max="100"/></div>
+        <div class="field"><label>Assessor</label><input type="text" id="gn-assessor"/></div>
+        <div class="form-full field"><label>Notes</label><textarea id="gn-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('nrgt')">💾 Save Record</button>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ CONSERVATION FORM ════════════════ -->
+<section class="view" id="view-form-conservation">
+  <div class="page-title">Conservation Data Collection <span class="tag tag-con">SO2</span></div>
+  <div class="page-sub">Wildlife crime, IMET scores, habitat status — works offline</div>
+  <div class="alert alert-warn" id="offlineAlert-conservation" style="display:none"><span>⚠</span> Offline mode — record will sync automatically.</div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchFormTab(this,'ctab-crime')">Wildlife Crime</div>
+    <div class="tab" onclick="switchFormTab(this,'ctab-imet')">IMET Assessment</div>
+    <div class="tab" onclick="switchFormTab(this,'ctab-habitat')">Habitat Status</div>
+  </div>
+
+  <!-- WILDLIFE CRIME TAB -->
+  <div id="ctab-crime">
+    <div class="form-section">
+      <div class="form-section-title">Incident Details (Indicator 2.2 / SO2.2)</div>
+      <div class="form-grid">
+        <div class="field"><label>Date of Incident <span class="required">*</span></label><input type="date" id="c-date"/></div>
+        <div class="field"><label>Ecosystem</label><select id="c-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+        <div class="field"><label>Incident Type</label>
+          <select id="c-type">
+            <option>Wildlife poaching</option><option>Illegal logging</option><option>Charcoal production</option>
+            <option>Illegal cultivation</option><option>Bushmeat</option><option>Other forestry crime</option></select></div>
+        <div class="field"><label>Sub-Location</label><input type="text" id="c-location"/></div>
+        <div class="field"><label>GPS Latitude</label><input type="number" id="c-lat" step="0.000001"/></div>
+        <div class="field"><label>GPS Longitude</label><input type="number" id="c-lon" step="0.000001"/></div>
+        <div class="field"><label>Species (if wildlife)</label><input type="text" id="c-species"/></div>
+        <div class="field"><label>Carcasses Found (#)</label><input type="number" id="c-carcass" min="0" value="0"/></div>
+        <div class="field"><label>Logged Trees (#)</label><input type="number" id="c-trees" min="0" value="0"/></div>
+        <div class="field"><label>Charcoal Kilns (#)</label><input type="number" id="c-kilns" min="0" value="0"/></div>
+        <div class="field"><label>Area Illegally Cultivated (ha)</label><input type="number" id="c-cultiv" min="0" step="0.1" value="0"/></div>
+        <div class="field"><label>Action Taken</label>
+          <select id="c-action"><option>Reported to authorities</option><option>Patrol intervention</option><option>Arrest made</option><option>No action possible</option><option>Under investigation</option></select></div>
+        <div class="field"><label>Reported By</label><input type="text" id="c-ranger"/></div>
+        <div class="form-full field"><label>Incident Description</label><textarea id="c-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('wildlife-crime')">💾 Save Incident</button>
+      <button class="btn btn-secondary" onclick="clearForm('conservation')">Clear</button>
+    </div>
+  </div>
+
+  <!-- IMET TAB -->
+  <div id="ctab-imet" style="display:none">
+    <div class="form-section">
+      <div class="form-section-title">IMET Management Effectiveness (Indicator 2.3)</div>
+      <div class="form-grid">
+        <div class="field"><label>Assessment Date</label><input type="date" id="im-date"/></div>
+        <div class="field"><label>Protected/Conserved Area</label><input type="text" id="im-area"/></div>
+        <div class="field"><label>Ecosystem</label><select id="im-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+        <div class="field"><label>Context Score (0–100)</label><input type="number" id="im-context" min="0" max="100"/></div>
+        <div class="field"><label>Planning Score (0–100)</label><input type="number" id="im-planning" min="0" max="100"/></div>
+        <div class="field"><label>Inputs Score (0–100)</label><input type="number" id="im-inputs" min="0" max="100"/></div>
+        <div class="field"><label>Process Score (0–100)</label><input type="number" id="im-process" min="0" max="100"/></div>
+        <div class="field"><label>Outputs Score (0–100)</label><input type="number" id="im-outputs" min="0" max="100"/></div>
+        <div class="field"><label>Outcomes Score (0–100)</label><input type="number" id="im-outcomes" min="0" max="100"/></div>
+        <div class="field"><label>Lead Assessor</label><input type="text" id="im-assessor"/></div>
+        <div class="form-full field"><label>Key Findings</label><textarea id="im-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('imet')">💾 Save Assessment</button>
+    </div>
+  </div>
+
+  <!-- HABITAT TAB -->
+  <div id="ctab-habitat" style="display:none">
+    <div class="form-section">
+      <div class="form-section-title">Habitat Status &amp; Land Cover (Indicator 2.1, 2.4)</div>
+      <div class="form-grid">
+        <div class="field"><label>Survey Date</label><input type="date" id="hab-date"/></div>
+        <div class="field"><label>Ecosystem</label><select id="hab-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+        <div class="field"><label>Site Name</label><input type="text" id="hab-site"/></div>
+        <div class="field"><label>Total Area Surveyed (ha)</label><input type="number" id="hab-total" step="0.1"/></div>
+        <div class="field"><label>Natural Habitat (ha)</label><input type="number" id="hab-nat" step="0.1"/></div>
+        <div class="field"><label>Degraded Area (ha)</label><input type="number" id="hab-deg" step="0.1"/></div>
+        <div class="field"><label>Under Restoration (ha)</label><input type="number" id="hab-rest" step="0.1"/></div>
+        <div class="field"><label>NDVI Value (if available)</label><input type="number" id="hab-ndvi" step="0.001"/></div>
+        <div class="field"><label>Surveyor</label><input type="text" id="hab-surveyor"/></div>
+        <div class="form-full field"><label>Observations</label><textarea id="hab-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitForm('habitat')">💾 Save Survey</button>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ LIVELIHOODS FORM ════════════════ -->
+<section class="view" id="view-form-livelihoods">
+  <div class="page-title">Livelihoods &amp; Green Economy <span class="tag tag-eco">SO3</span></div>
+  <div class="page-sub">FCS, jobs, enterprise data — works offline</div>
+  <div class="alert alert-warn" id="offlineAlert-livelihoods" style="display:none"><span>⚠</span> Offline mode — will sync when online.</div>
+
+  <div class="form-section">
+    <div class="form-section-title">Household / Beneficiary Details</div>
+    <div class="form-grid">
+      <div class="field"><label>Date <span class="required">*</span></label><input type="date" id="l-date"/></div>
+      <div class="field"><label>Village / Community <span class="required">*</span></label><input type="text" id="l-village"/></div>
+      <div class="field"><label>Ecosystem</label><select id="l-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+      <div class="field"><label>Respondent Name</label><input type="text" id="l-name"/></div>
+      <div class="field"><label>Gender</label><select id="l-gender"><option>Female</option><option>Male</option><option>Non-binary/Other</option></select></div>
+      <div class="field"><label>Age Group</label><select id="l-age"><option>Under 18</option><option>18–35 (Youth)</option><option>36–59</option><option>60+</option></select></div>
+      <div class="field"><label>Indigenous/Minority Group?</label><select id="l-ip"><option>No</option><option>Yes – Ogiek</option><option>Yes – Other</option></select></div>
+      <div class="field"><label>HH Type</label><select id="l-hhtype"><option>Female-headed HH</option><option>Male-headed HH</option><option>Youth-led</option></select></div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">Food Consumption Score (FCS) — Indicator 3.1</div>
+    <div class="form-grid three">
+      <div class="field"><label>Cereals/Tubers (days/week, 0–7)</label><input type="number" id="l-fcs1" min="0" max="7"/></div>
+      <div class="field"><label>Pulses/Legumes (days/week)</label><input type="number" id="l-fcs2" min="0" max="7"/></div>
+      <div class="field"><label>Vegetables (days/week)</label><input type="number" id="l-fcs3" min="0" max="7"/></div>
+      <div class="field"><label>Fruit (days/week)</label><input type="number" id="l-fcs4" min="0" max="7"/></div>
+      <div class="field"><label>Meat/Fish/Eggs (days/week)</label><input type="number" id="l-fcs5" min="0" max="7"/></div>
+      <div class="field"><label>Dairy (days/week)</label><input type="number" id="l-fcs6" min="0" max="7"/></div>
+      <div class="field"><label>Sugar/Oil (days/week)</label><input type="number" id="l-fcs7" min="0" max="7"/></div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">Livelihoods &amp; Enterprise (Indicators 3.2, 3.3)</div>
+    <div class="form-grid">
+      <div class="field"><label>Primary Livelihood</label>
+        <select id="l-livelihood"><option>Subsistence farming</option><option>Commercial farming</option><option>Livestock</option><option>Eco-tourism</option><option>Forestry enterprise</option><option>Honey/bee-keeping</option><option>Charcoal (unsustainable)</option><option>Employed</option><option>Other</option></select></div>
+      <div class="field"><label>Nature-Positive Livelihood Adopted?</label><select id="l-nbl"><option>No</option><option>Yes – since project</option><option>Yes – pre-existing</option></select></div>
+      <div class="field"><label>Has Green Job Created by Project?</label><select id="l-job"><option>No</option><option>Yes</option></select></div>
+      <div class="field"><label>Value Chain Involved In</label>
+        <select id="l-vc"><option>None</option><option>Horticulture</option><option>Livestock</option><option>Legumes</option><option>Tree-based food</option><option>Eco-tourism</option><option>Honey</option><option>Other</option></select></div>
+      <div class="field"><label>Monthly HH Income Estimate (KES)</label><input type="number" id="l-income" min="0"/></div>
+      <div class="field"><label>Training Received from Project?</label><select id="l-training"><option>No</option><option>Yes – governance</option><option>Yes – agriculture</option><option>Yes – enterprise/NBE</option><option>Yes – human rights</option><option>Multiple</option></select></div>
+      <div class="form-full field"><label>Key Livelihood Changes / Notes</label><textarea id="l-notes"></textarea></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="submitForm('livelihoods')">💾 Save Record</button>
+    <button class="btn btn-secondary" onclick="clearForm('livelihoods')">Clear</button>
+  </div>
+</section>
+
+<!-- ════════════════ RANGER PATROL FORM ════════════════ -->
+<section class="view" id="view-form-ranger">
+  <div class="page-title">Ranger Patrol Record</div>
+  <div class="page-sub">Daily patrol data — HWC, patrols, ranger welfare — works offline</div>
+  <div class="alert alert-warn" id="offlineAlert-ranger" style="display:none"><span>⚠</span> Offline mode — will sync automatically.</div>
+  <div class="form-section">
+    <div class="form-section-title">Patrol Details (Indicator 2.2.1, 2.2.2)</div>
+    <div class="form-grid">
+      <div class="field"><label>Patrol Date <span class="required">*</span></label><input type="date" id="r-date"/></div>
+      <div class="field"><label>Ecosystem</label><select id="r-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+      <div class="field"><label>Patrol Team</label><input type="text" id="r-team" placeholder="Team name / ID"/></div>
+      <div class="field"><label>Lead Ranger</label><input type="text" id="r-ranger"/></div>
+      <div class="field"><label>Team Size (#)</label><input type="number" id="r-size" min="1"/></div>
+      <div class="field"><label>Women on Patrol (#)</label><input type="number" id="r-women" min="0"/></div>
+      <div class="field"><label>Patrol Duration (hours)</label><input type="number" id="r-hours" min="0" step="0.5"/></div>
+      <div class="field"><label>Area Covered (km²)</label><input type="number" id="r-area" step="0.1"/></div>
+      <div class="field"><label>HWC Incidents Encountered (#)</label><input type="number" id="r-hwc" min="0" value="0"/></div>
+      <div class="field"><label>HWC Type (if any)</label>
+        <select id="r-hwctype"><option>None</option><option>Elephant crop raid</option><option>Predator attack on livestock</option><option>Human injury</option><option>Property damage</option><option>Other</option></select></div>
+      <div class="field"><label>Crimes Detected (#)</label><input type="number" id="r-crimes" min="0" value="0"/></div>
+      <div class="field"><label>Arrests Made (#)</label><input type="number" id="r-arrests" min="0" value="0"/></div>
+      <div class="form-full field"><label>Patrol Observations</label><textarea id="r-notes"></textarea></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="submitForm('ranger-patrol')">💾 Save Patrol Record</button>
+    <button class="btn btn-secondary" onclick="clearForm('ranger')">Clear</button>
+  </div>
+</section>
+
+<!-- ════════════════ RESTORATION FORM ════════════════ -->
+<section class="view" id="view-form-restoration">
+  <div class="page-title">Restoration Monitoring</div>
+  <div class="page-sub">Riparian, forest &amp; rangeland restoration progress — works offline</div>
+  <div class="form-section">
+    <div class="form-section-title">Site &amp; Restoration Data (Indicators 2.3.1–2.3.3)</div>
+    <div class="form-grid">
+      <div class="field"><label>Survey Date <span class="required">*</span></label><input type="date" id="res-date"/></div>
+      <div class="field"><label>Ecosystem</label><select id="res-eco"><option>Mau Forest</option><option>Tsavo</option></select></div>
+      <div class="field"><label>Restoration Type</label>
+        <select id="res-type"><option>Riparian zone</option><option>Degraded forest</option><option>Rangeland</option></select></div>
+      <div class="field"><label>Site Name</label><input type="text" id="res-site"/></div>
+      <div class="field"><label>GPS Latitude</label><input type="number" id="res-lat" step="0.000001"/></div>
+      <div class="field"><label>GPS Longitude</label><input type="number" id="res-lon" step="0.000001"/></div>
+      <div class="field"><label>Area / Length Treated (ha or km)</label><input type="number" id="res-area" step="0.1"/></div>
+      <div class="field"><label>Unit</label><select id="res-unit"><option>ha</option><option>km</option></select></div>
+      <div class="field"><label>Seedlings Planted (#)</label><input type="number" id="res-seedlings" min="0"/></div>
+      <div class="field"><label>Species Used</label><input type="text" id="res-species" placeholder="e.g. Acacia, Grevillea"/></div>
+      <div class="field"><label>Vegetation Cover (%) — NDVI proxy</label><input type="number" id="res-cover" min="0" max="100"/></div>
+      <div class="field"><label>Survival Rate (%)</label><input type="number" id="res-survival" min="0" max="100"/></div>
+      <div class="field"><label>Community Workers Engaged (#)</label><input type="number" id="res-workers" min="0"/></div>
+      <div class="field"><label>Women Workers (#)</label><input type="number" id="res-womenwork" min="0"/></div>
+      <div class="field"><label>Surveyor</label><input type="text" id="res-surveyor"/></div>
+      <div class="form-full field"><label>Observations &amp; Challenges</label><textarea id="res-notes"></textarea></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="submitForm('restoration')">💾 Save Survey</button>
+    <button class="btn btn-secondary" onclick="clearForm('restoration')">Clear</button>
+  </div>
+</section>
+
+<!-- ════════════════ TRAINING FORM ════════════════ -->
+<section class="view" id="view-form-training">
+  <div class="page-title">Training &amp; Capacity Building</div>
+  <div class="page-sub">Participant records for all trainings — works offline</div>
+  <div class="form-section">
+    <div class="form-section-title">Training Session Details (Indicators 1.1.2, 1.3.1, 2.2.2, 3.1.2)</div>
+    <div class="form-grid">
+      <div class="field"><label>Training Date <span class="required">*</span></label><input type="date" id="tr-date"/></div>
+      <div class="field"><label>Training Topic <span class="required">*</span></label>
+        <select id="tr-topic">
+          <option>Inclusive Governance</option><option>Human Rights / HRBA</option>
+          <option>HWC Prevention</option><option>Wildlife Crime / Ranger Skills</option>
+          <option>Sustainable Agriculture</option><option>Agroecology</option>
+          <option>Enterprise / NBE Skills</option><option>Eco-tourism</option>
+          <option>Community Ranger Code of Conduct</option><option>GBV / Safeguards</option>
+          <option>FSTP / Financial Management</option><option>Other</option></select></div>
+      <div class="field"><label>Linked Indicator</label>
+        <select id="tr-indicator"><option>1.1.2 CBO Members Trained</option><option>1.3.1 Human Rights Training</option><option>2.2.2 Rangers Trained</option><option>3.1.2 Nature+ Production</option><option>3.3.2 NBE Skills</option><option>Other</option></select></div>
+      <div class="field"><label>Ecosystem / Location</label><select id="tr-eco"><option>Mau Forest</option><option>Tsavo</option><option>SOK (multi-site)</option></select></div>
+      <div class="field"><label>Venue</label><input type="text" id="tr-venue"/></div>
+      <div class="field"><label>Organising Partner</label>
+        <select id="tr-org"><option>WWF Kenya</option><option>KWCA</option><option>TTWCA</option><option>Rhino Ark</option><option>CIFOR-ICRAF</option><option>Government</option></select></div>
+      <div class="field"><label>Total Participants <span class="required">*</span></label><input type="number" id="tr-total" min="0"/></div>
+      <div class="field"><label>Women (#)</label><input type="number" id="tr-women" min="0"/></div>
+      <div class="field"><label>Youth 18–35 (#)</label><input type="number" id="tr-youth" min="0"/></div>
+      <div class="field"><label>Indigenous People (#)</label><input type="number" id="tr-ip" min="0"/></div>
+      <div class="field"><label>Pre-test Avg Score (%)</label><input type="number" id="tr-pre" min="0" max="100"/></div>
+      <div class="field"><label>Post-test Avg Score (%)</label><input type="number" id="tr-post" min="0" max="100"/></div>
+      <div class="form-full field"><label>Key Learning Outcomes / Notes</label><textarea id="tr-notes"></textarea></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" onclick="submitForm('training')">💾 Save Training Record</button>
+    <button class="btn btn-secondary" onclick="clearForm('training')">Clear</button>
+  </div>
+</section>
+
+<!-- ════════════════ DATABASE ════════════════ -->
+<section class="view" id="view-database">
+  <div class="page-title">Records Database</div>
+  <div class="page-sub">All submitted data — filter, search and export</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <input type="text" id="dbSearch" placeholder="Search records..." style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:13px;width:220px;" oninput="filterDB()"/>
+    <select id="dbFilter" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:13px;" onchange="filterDB()">
+      <option value="">All Forms</option>
+      <option value="governance">Governance</option>
+      <option value="platform">Platform</option>
+      <option value="nrgt">NRGT</option>
+      <option value="wildlife-crime">Wildlife Crime</option>
+      <option value="imet">IMET</option>
+      <option value="habitat">Habitat</option>
+      <option value="livelihoods">Livelihoods</option>
+      <option value="ranger-patrol">Ranger Patrol</option>
+      <option value="restoration">Restoration</option>
+      <option value="training">Training</option>
+    </select>
+    <select id="dbEco" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:13px;" onchange="filterDB()">
+      <option value="">All Ecosystems</option><option>Mau Forest</option><option>Tsavo</option>
+    </select>
+    <button class="btn btn-secondary btn-icon" onclick="exportCSV()">⬇ Export CSV</button>
+    <span style="margin-left:auto;font-size:12px;color:var(--text2)" id="dbCount">0 records</span>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table class="tbl" id="dbTable">
+      <thead><tr><th>#</th><th>Form</th><th>Date</th><th>Ecosystem</th><th>Key Value</th><th>Collector</th><th>Sync</th><th>Actions</th></tr></thead>
+      <tbody id="dbTbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ════════════════ INDICATORS ════════════════ -->
+<section class="view" id="view-indicators">
+  <div class="page-title">Indicator Tracker</div>
+  <div class="page-sub">Live progress against logframe indicators — auto-calculated from records</div>
+  <div id="indicatorCards"></div>
+</section>
+
+<!-- ════════════════ OFFLINE QUEUE ════════════════ -->
+<section class="view" id="view-offline-queue">
+  <div class="page-title">Offline Sync Queue</div>
+  <div class="page-sub">Records collected offline waiting to be synced to the central database</div>
+  <div class="alert alert-info"><span>ℹ</span> Records collected while offline are stored in your browser's local storage and will sync automatically when a connection is detected. Click "Force Sync" to attempt manually.</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button class="btn btn-primary" onclick="syncNow()">⟳ Force Sync Now</button>
+    <button class="btn btn-danger" onclick="clearQueue()">🗑 Clear Queue</button>
+  </div>
+  <div id="queueList"></div>
+</section>
+
+<!-- ════════════════ SETTINGS ════════════════ -->
+<section class="view" id="view-settings">
+  <div class="page-title">Settings &amp; Configuration</div>
+  <div class="page-sub">User profile, sync settings, data management</div>
+  <div class="form-grid">
+    <div class="card">
+      <div class="card-title">User Profile</div>
+      <div class="form-grid" style="margin-top:0">
+        <div class="field"><label>Your Name</label><input type="text" id="set-name" placeholder="Full name"/></div>
+        <div class="field"><label>Organisation</label>
+          <select id="set-org"><option>WWF Kenya</option><option>KWCA</option><option>TTWCA</option><option>Rhino Ark</option><option>CIFOR-ICRAF</option><option>Government Partner</option></select></div>
+        <div class="field"><label>Primary Ecosystem</label>
+          <select id="set-eco"><option>Mau Forest</option><option>Tsavo</option><option>Both</option></select></div>
+        <div class="field"><label>Role</label>
+          <select id="set-role"><option>M&amp;E Officer</option><option>Field Officer</option><option>Ranger</option><option>Programme Manager</option><option>Data Analyst</option></select></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="saveSettings()">Save Profile</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Data Management</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+        <button class="btn btn-secondary" onclick="loadSeedData()">🌱 Load Demo Data</button>
+        <button class="btn btn-secondary" onclick="exportCSV()">⬇ Export All Data (CSV)</button>
+        <button class="btn btn-secondary" onclick="exportJSON()">⬇ Export All Data (JSON)</button>
+        <button class="btn btn-danger" onclick="clearAllData()">🗑 Clear All Records</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:0">
+    <div class="card-title">System Information</div>
+    <table class="tbl">
+      <tbody>
+        <tr><td style="color:var(--text2);width:200px">MIS Version</td><td>SOK-MIS v2.0.0 (Kobo-connected)</td></tr>
+        <tr><td style="color:var(--text2)">Data Source</td><td>KoboToolbox — kf.kobotoolbox.org</td></tr>
+        <tr><td style="color:var(--text2)">API Token</td><td style="font-family:var(--mono);font-size:11px">567c…d6bc (configured)</td></tr>
+        <tr><td style="color:var(--text2)">Form 1 – Governance</td><td style="font-family:var(--mono);font-size:11px">acrgKMRUUfTAevjPxvCE3k</td></tr>
+        <tr><td style="color:var(--text2)">Form 2 – Conservation</td><td style="font-family:var(--mono);font-size:11px">aEJYxv2nZTD6i6nZmhW8MP</td></tr>
+        <tr><td style="color:var(--text2)">Form 3 – Livelihoods</td><td style="font-family:var(--mono);font-size:11px">aGyUjjEnDf8pcdD7coegvh</td></tr>
+        <tr><td style="color:var(--text2)">Form 4 – Ranger Patrol</td><td style="font-family:var(--mono);font-size:11px">azM22R48HHzLZc4QoD37M7</td></tr>
+        <tr><td style="color:var(--text2)">Form 5 – Restoration</td><td style="font-family:var(--mono);font-size:11px">abVeXBuVynJ3p35EbrP4Dv</td></tr>
+        <tr><td style="color:var(--text2)">Form 6 – Training</td><td style="font-family:var(--mono);font-size:11px">aebdXYj7dimfAvyHsbnaLx</td></tr>
+        <tr><td style="color:var(--text2)">Project</td><td>Southern Kenya Landscapes Initiative (SOK)</td></tr>
+        <tr><td style="color:var(--text2)">Consortium</td><td>WWF Kenya · KWCA · TTWCA · Rhino Ark · CIFOR-ICRAF</td></tr>
+        <tr><td style="color:var(--text2)">Funder</td><td>European Union — 2025–2030</td></tr>
+        <tr><td style="color:var(--text2)">Kobo Records + Local Queue</td><td id="storageInfo">—</td></tr>
+        <tr><td style="color:var(--text2)">Last Kobo Sync</td><td id="lastSync">Never</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  DATABASE  (localStorage-backed, offline-first)
+// ═══════════════════════════════════════════════════
+const DB_KEY       = 'sok_mis_records';
+const QUEUE_KEY    = 'sok_mis_queue';
+const SETTINGS_KEY = 'sok_mis_settings';
+const CACHE_KEY    = 'sok_mis_kobo_cache';
+const CACHE_TS_KEY = 'sok_mis_kobo_cache_ts';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5-minute cache to avoid hammering the API
+
+// ── KOBO CONFIGURATION ──────────────────────────────────────────
+const KOBO_TOKEN = '567ce717d1b4871bfe4c5f0d59d7a00255e6d6bc';
+const KOBO_BASE  = 'https://kf.kobotoolbox.org/api/v2/assets';
+const FORM_UIDS  = {
+  'governance':     'acrgKMRUUfTAevjPxvCE3k',
+  'conservation':   'aEJYxv2nZTD6i6nZmhW8MP',
+  'livelihoods':    'aGyUjjEnDf8pcdD7coegvh',
+  'ranger-patrol':  'azM22R48HHzLZc4QoD37M7',
+  'restoration':    'abVeXBuVynJ3p35EbrP4Dv',
+  'training':       'aebdXYj7dimfAvyHsbnaLx',
+};
+
+// ── KOBO FIELD NAME MAPPING ──────────────────────────────────────
+// Maps Kobo short field names → MIS internal field names
+// Kobo returns group-prefixed names like "grp_meta/ecosystem" which
+// flattenKoboRow() strips to just "ecosystem". These aliases handle
+// any remaining mismatches between XLSForm names and MIS field names.
+const FIELD_MAP = {
+  // Governance
+  'collection_date':       'date',
+  'data_collector_name':   'collector',
+  'data_collector_org':    'org',
+  'cbo_name':              'cbo',
+  'nrgt_average':          'nrgt_score',
+  'mgmt_plan_status':      'mgmt_plan_status',
+  'trained_governance':    'trained',
+  // Conservation
+  'incident_date':         'date',
+  'reporter_name':         'ranger',
+  'crime_location':        'location',
+  'crime_type':            'incident_type',
+  'crime_gps-Latitude':    'lat',
+  'crime_gps-Longitude':   'lon',
+  'pa_name':               'area',
+  'imet_average':          'avg_score',
+  'imet_lead_assessor':    'assessor',
+  'site_gps-Latitude':     'lat',
+  'site_gps-Longitude':    'lon',
+  'site_name':             'site',
+  // Livelihoods
+  'survey_date':           'date',
+  'surveyor_name':         'collector',
+  'surveyor_org':          'org',
+  'fcs_score':             'fcs_score',
+  'fcs_category':          'fcs_category',
+  'nbl_adopted':           'nbl_adopted',
+  'green_job_created':     'green_job',
+  'income_monthly_kes':    'income_kes',
+  'bns_proxy_score':       'bns_score',
+  // Ranger
+  'patrol_date':           'date',
+  'ranger_org':            'org',
+  'patrol_team_id':        'team',
+  'lead_ranger':           'ranger',
+  'patrol_duration_hrs':   'duration_hrs',
+  'area_covered_km2':      'area_km2',
+  'welfare_avg_score':     'welfare_score',
+  // Restoration
+  'survey_date':           'date',
+  'rest_type':             'rest_type',
+  'restoration_type':      'rest_type',
+  'area_ha':               'area_value',
+  'length_km':             'area_value',
+  'area_unit':             'area_unit',
+  'veg_cover_pct':         'veg_cover_pct',
+  'survival_rate_pct':     'survival_pct',
+  'community_workers':     'community_workers',
+  'women_workers':         'women_workers',
+  'seedlings_planted':     'seedlings',
+  'species_planted':       'species',
+  // Training
+  'training_date':         'date',
+  'organising_partner':    'org',
+  'facilitator_name':      'collector',
+  'training_topic':        'topic',
+  'linked_indicator':      'indicator',
+  'total_participants':    'total',
+  'women_participants':    'women',
+  'men_participants':      'men',
+  'youth_participants':    'youth',
+  'ip_participants':       'ip',
+  'pre_test_avg':          'pre_score',
+  'post_test_avg':         'post_score',
+  'knowledge_gain_pct':    'knowledge_gain',
+};
+
+// ── FLATTEN KOBO ROW ─────────────────────────────────────────────
+// Kobo returns grouped fields as "grp_meta/ecosystem" — strip the prefix.
+// Then apply FIELD_MAP aliases so MIS dashboard queries find the right keys.
+function flattenKoboRow(row) {
+  const flat = {};
+  for (const [key, val] of Object.entries(row)) {
+    const shortKey = key.includes('/') ? key.split('/').pop() : key;
+    flat[shortKey] = val;
+  }
+  // Apply field name aliases
+  for (const [koboName, misName] of Object.entries(FIELD_MAP)) {
+    if (flat[koboName] !== undefined && flat[misName] === undefined) {
+      flat[misName] = flat[koboName];
+    }
+  }
+  return flat;
+}
+
+// ── BUILD key_display SUMMARY ────────────────────────────────────
+function buildKeyDisplay(flat, formType) {
+  switch(formType) {
+    case 'governance':
+      return `${flat.cbo||flat.cbo_name||'—'} — NRGT: ${flat.nrgt_score||flat.nrgt_average||'—'}%`;
+    case 'conservation':
+      return `${flat.incident_type||flat.report_type||'—'} — ${flat.location||flat.site||'—'}`;
+    case 'livelihoods':
+      return `${flat.village||'—'} — FCS: ${flat.fcs_score||'—'}, ${flat.gender||'—'}`;
+    case 'ranger-patrol':
+      return `${flat.team||flat.patrol_team_id||'—'} — HWC: ${flat.hwc_incidents||0}, Crimes: ${flat.crimes_detected||0}`;
+    case 'restoration':
+      return `${flat.site||flat.site_name||'—'} — ${flat.area_value||flat.area_ha||flat.length_km||0} ${flat.area_unit||'ha'} ${flat.rest_type||flat.restoration_type||''}`;
+    case 'training':
+      return `${flat.topic||flat.training_topic||'—'} — ${flat.total||flat.total_participants||0} participants`;
+    default:
+      return flat.ecosystem || formType;
+  }
+}
+
+// ── FETCH ONE FORM FROM KOBO ─────────────────────────────────────
+async function fetchFromKobo(formType, uid) {
+  const url = `${KOBO_BASE}/${uid}/data/?format=json&limit=30000`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Token ${KOBO_TOKEN}` }
+  });
+  if (!res.ok) throw new Error(`Kobo API error ${res.status} for ${formType}`);
+  const json = await res.json();
+  return (json.results || []).map(row => {
+    const flat = flattenKoboRow(row);
+    return {
+      ...flat,
+      form_type:    formType,
+      id:           String(row._id || row.id || Date.now()),
+      submitted_at: row._submission_time || row.submitted_at || '',
+      synced:       true,
+      key_display:  buildKeyDisplay(flat, formType),
+    };
+  });
+}
+
+// ── MAIN getDB — async, Kobo-first with cache + offline fallback ──
+let _dbCache = null;
+let _dbCacheTs = 0;
+
+async function getDB(forceRefresh = false) {
+  const now = Date.now();
+
+  // 1. Return in-memory cache if fresh
+  if (!forceRefresh && _dbCache && (now - _dbCacheTs) < CACHE_TTL_MS) {
+    return _dbCache;
+  }
+
+  if (navigator.onLine) {
+    try {
+      showSyncIndicator(true);
+      // Fetch all 6 forms in parallel
+      const results = await Promise.all(
+        Object.entries(FORM_UIDS).map(([type, uid]) => fetchFromKobo(type, uid))
+      );
+      const koboRecords = results.flat();
+      // Merge with local offline queue (records not yet synced to Kobo)
+      const localQueue = getQueue();
+      const merged = [...koboRecords, ...localQueue];
+      // Update caches
+      _dbCache   = merged;
+      _dbCacheTs = now;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(merged));
+      localStorage.setItem(CACHE_TS_KEY, String(now));
+      localStorage.setItem('sok_last_sync', new Date().toLocaleString());
+      showSyncIndicator(false);
+      return merged;
+    } catch (err) {
+      console.warn('Kobo fetch failed:', err);
+      showSyncIndicator(false);
+      showToast('⚠ Could not reach Kobo — showing cached data', 'info');
+    }
+  }
+
+  // 2. Offline or fetch failed — try localStorage cache
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    _dbCache   = JSON.parse(cached);
+    _dbCacheTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0');
+    return [..._dbCache, ...getQueue()];
+  }
+
+  // 3. Last resort — legacy localStorage records
+  return [...JSON.parse(localStorage.getItem(DB_KEY) || '[]'), ...getQueue()];
+}
+
+function showSyncIndicator(loading) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (!dot || !lbl) return;
+  if (loading) {
+    dot.style.background = 'var(--orange)';
+    lbl.textContent = 'Fetching…';
+  } else {
+    dot.style.background = navigator.onLine ? 'var(--green)' : 'var(--orange)';
+    lbl.textContent = navigator.onLine ? 'Kobo Live' : 'Offline';
+  }
+}
+
+// ── LOCAL WRITE HELPERS (unchanged — used by offline form submissions) ──
+function saveDB(r)  { localStorage.setItem(DB_KEY, JSON.stringify(r)); }
+function getQueue() { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); }
+function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+function getSettings(){ return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); }
+
+function addRecord(rec) {
+  const db = getDB();
+  rec.id = Date.now() + Math.random().toString(36).slice(2,6);
+  rec.submitted_at = new Date().toISOString();
+  rec.synced = navigator.onLine;
+  db.push(rec);
+  saveDB(db);
+  if (!navigator.onLine) {
+    const q = getQueue();
+    q.push(rec);
+    saveQueue(q);
+  }
+  updateQueueBadge();
+  return rec;
+}
+
+// ═══════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════
+function nav(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const view = document.getElementById('view-' + id);
+  if (view) view.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(`'${id}'`)) n.classList.add('active');
+  });
+  if (id === 'dashboard')     renderDashboard();
+  if (id === 'database')      renderDatabase();
+  if (id === 'indicators')    renderIndicators();
+  if (id === 'offline-queue') renderQueue();
+  if (id === 'map')           renderMap();
+  if (id === 'settings')      renderSettings();
+  updateOfflineAlerts();
+}
+
+// ═══════════════════════════════════════════════════
+//  FORM TABS
+// ═══════════════════════════════════════════════════
+function switchFormTab(el, tabId) {
+  const bar = el.closest('.tab-bar');
+  bar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // hide all siblings
+  const allTabs = ['gtab-cbo','gtab-platform','gtab-nrgt',
+                   'ctab-crime','ctab-imet','ctab-habitat'];
+  allTabs.forEach(id => { const e = document.getElementById(id); if (e) e.style.display='none'; });
+  const t = document.getElementById(tabId);
+  if (t) t.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════
+//  FORM SUBMISSION
+// ═══════════════════════════════════════════════════
+function submitForm(type) {
+  let rec = { form_type: type };
+  const s = getSettings();
+
+  if (type === 'governance') {
+    rec = { ...rec,
+      date: v('g-date'), ecosystem: v('g-eco'), cbo: v('g-cbo'), cbo_type: v('g-cbotype'),
+      collector: v('g-collector') || s.name, org: v('g-org') || s.org,
+      total_members: n('g-total'), women_members: n('g-women'), youth_members: n('g-youth'), ip_members: n('g-ip'),
+      women_board_pct: n('g-women-board'), youth_board_pct: n('g-youth-board'),
+      nrgt_score: n('g-nrgt'), mgmt_plan_status: v('g-plan'), trained: v('g-trained'),
+      training_date: v('g-train-date'), notes: v('g-notes'),
+      key_display: `${v('g-cbo')} — NRGT: ${v('g-nrgt')||'—'}%`
+    };
+  } else if (type === 'platform') {
+    rec = { ...rec,
+      date: v('gp-date'), platform: v('gp-platform'), ecosystem: v('gp-platform').includes('Tsavo') ? 'Tsavo' : 'Mau Forest',
+      total_attendees: n('gp-total'), women: n('gp-women'), youth: n('gp-youth'), ip: n('gp-ip'),
+      actions_agreed: n('gp-actions'), collector: v('gp-collector') || s.name,
+      notes: v('gp-notes'),
+      key_display: `${v('gp-platform')} — ${v('gp-total')||0} attendees, ${v('gp-actions')||0} actions`
+    };
+  } else if (type === 'nrgt') {
+    const avg = [n('gn-lv'),n('gn-dir'),n('gn-perf'),n('gn-acc')].filter(x=>x).reduce((a,b)=>a+b,0)/4||0;
+    rec = { ...rec,
+      date: v('gn-date'), ecosystem: v('gn-eco'), cbo: v('gn-cbo'),
+      lv_score: n('gn-lv'), dir_score: n('gn-dir'), perf_score: n('gn-perf'), acc_score: n('gn-acc'),
+      avg_score: Math.round(avg), assessor: v('gn-assessor'), notes: v('gn-notes'),
+      key_display: `${v('gn-cbo')} — Overall: ${Math.round(avg)}%`
+    };
+  } else if (type === 'wildlife-crime') {
+    rec = { ...rec,
+      date: v('c-date'), ecosystem: v('c-eco'), incident_type: v('c-type'),
+      location: v('c-location'), lat: n('c-lat'), lon: n('c-lon'),
+      species: v('c-species'), carcasses: n('c-carcass'), logged_trees: n('c-trees'),
+      charcoal_kilns: n('c-kilns'), illegal_ha: n('c-cultiv'),
+      action: v('c-action'), ranger: v('c-ranger') || s.name, notes: v('c-notes'),
+      key_display: `${v('c-type')} — ${v('c-location')}`
+    };
+  } else if (type === 'imet') {
+    const scores = [n('im-context'),n('im-planning'),n('im-inputs'),n('im-process'),n('im-outputs'),n('im-outcomes')];
+    const avg = scores.filter(x=>x).reduce((a,b)=>a+b,0)/(scores.filter(x=>x).length||1);
+    rec = { ...rec,
+      date: v('im-date'), ecosystem: v('im-eco'), area: v('im-area'),
+      context: n('im-context'), planning: n('im-planning'), inputs: n('im-inputs'),
+      process: n('im-process'), outputs: n('im-outputs'), outcomes: n('im-outcomes'),
+      avg_score: Math.round(avg), assessor: v('im-assessor'), notes: v('im-notes'),
+      key_display: `${v('im-area')} — IMET: ${Math.round(avg)}%`
+    };
+  } else if (type === 'habitat') {
+    rec = { ...rec,
+      date: v('hab-date'), ecosystem: v('hab-eco'), site: v('hab-site'),
+      total_ha: n('hab-total'), natural_ha: n('hab-nat'), degraded_ha: n('hab-deg'),
+      restoration_ha: n('hab-rest'), ndvi: n('hab-ndvi'), surveyor: v('hab-surveyor') || s.name, notes: v('hab-notes'),
+      key_display: `${v('hab-site')} — Degraded: ${v('hab-deg')||0} ha`
+    };
+  } else if (type === 'livelihoods') {
+    const fcs = (n('l-fcs1')||0)*2+(n('l-fcs2')||0)*3+(n('l-fcs3')||0)*1+(n('l-fcs4')||0)*1+(n('l-fcs5')||0)*4+(n('l-fcs6')||0)*4+(n('l-fcs7')||0)*0.5;
+    rec = { ...rec,
+      date: v('l-date'), ecosystem: v('l-eco'), village: v('l-village'),
+      gender: v('l-gender'), age_group: v('l-age'), ip: v('l-ip'), hh_type: v('l-hhtype'),
+      fcs_score: Math.round(fcs), livelihood: v('l-livelihood'), nbl_adopted: v('l-nbl'),
+      green_job: v('l-job'), value_chain: v('l-vc'), income_kes: n('l-income'),
+      training_received: v('l-training'), notes: v('l-notes'), collector: s.name,
+      key_display: `${v('l-village')} — FCS: ${Math.round(fcs)}, ${v('l-gender')}`
+    };
+  } else if (type === 'ranger-patrol') {
+    rec = { ...rec,
+      date: v('r-date'), ecosystem: v('r-eco'), team: v('r-team'),
+      lead_ranger: v('r-ranger') || s.name, team_size: n('r-size'),
+      women_on_patrol: n('r-women'), duration_hrs: n('r-hours'), area_km2: n('r-area'),
+      hwc_incidents: n('r-hwc'), hwc_type: v('r-hwctype'),
+      crimes_detected: n('r-crimes'), arrests: n('r-arrests'), notes: v('r-notes'),
+      key_display: `${v('r-team')||v('r-eco')} — HWC: ${v('r-hwc')||0}, Crimes: ${v('r-crimes')||0}`
+    };
+  } else if (type === 'restoration') {
+    rec = { ...rec,
+      date: v('res-date'), ecosystem: v('res-eco'), rest_type: v('res-type'),
+      site: v('res-site'), lat: n('res-lat'), lon: n('res-lon'),
+      area_value: n('res-area'), area_unit: v('res-unit'),
+      seedlings: n('res-seedlings'), species: v('res-species'),
+      veg_cover_pct: n('res-cover'), survival_pct: n('res-survival'),
+      community_workers: n('res-workers'), women_workers: n('res-womenwork'),
+      surveyor: v('res-surveyor') || s.name, notes: v('res-notes'),
+      key_display: `${v('res-site')} — ${v('res-area')||0} ${v('res-unit')} ${v('res-type')}`
+    };
+  } else if (type === 'training') {
+    rec = { ...rec,
+      date: v('tr-date'), topic: v('tr-topic'), indicator: v('tr-indicator'),
+      ecosystem: v('tr-eco'), venue: v('tr-venue'), org: v('tr-org') || s.org,
+      total: n('tr-total'), women: n('tr-women'), youth: n('tr-youth'), ip: n('tr-ip'),
+      pre_score: n('tr-pre'), post_score: n('tr-post'), notes: v('tr-notes'), collector: s.name,
+      key_display: `${v('tr-topic')} — ${v('tr-total')||0} participants`
+    };
+  }
+
+  if (!rec.date && !rec.ecosystem) { showToast('Please fill in required fields', 'error'); return; }
+
+  addRecord(rec);
+  showToast(`✓ ${type} record saved${navigator.onLine ? ' & synced' : ' — queued for sync'}`, 'success');
+  updateQueueBadge();
+  clearForm(type);
+}
+
+function v(id){ const e=document.getElementById(id); return e ? e.value : ''; }
+function n(id){ const val=v(id); return val===''||val===null ? null : parseFloat(val); }
+
+function clearForm(type) {
+  const fields = document.querySelectorAll(`#view-form-${type} input, #view-form-${type} textarea`);
+  fields.forEach(f => { if (f.type !== 'submit') f.value = ''; });
+}
+
+// ═══════════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════════
+let charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+async function renderDashboard() {
+  // Show loading state while fetching from Kobo
+  ['stat-records','stat-people','stat-cbos'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '…';
+  });
+  const haEl = document.getElementById('stat-ha');
+  if (haEl) haEl.textContent = '…';
+
+  const db = await getDB();
+  // Stats
+  const people = db.filter(r=>r.form_type==='training').reduce((a,r)=>a+(r.total||0),0)
+    + db.filter(r=>r.form_type==='livelihoods').length;
+  const ha = db.filter(r=>r.form_type==='restoration').reduce((a,r)=>a+(r.area_unit==='ha'?r.area_value||0:0),0);
+  const cbos = new Set(db.filter(r=>r.form_type==='governance').map(r=>r.cbo)).size;
+
+  document.getElementById('stat-records').textContent = db.length;
+  document.getElementById('stat-people').textContent = people.toLocaleString();
+  document.getElementById('stat-ha').textContent = ha.toFixed(0)+' ha';
+  document.getElementById('stat-cbos').textContent = cbos;
+
+  // Progress chart
+  const indicators = [
+    { label:'CBOs Trained', current: cbos, target: 13 },
+    { label:'People Trained', current: db.filter(r=>r.form_type==='training').reduce((a,r)=>a+(r.total||0),0), target: 2000 },
+    { label:'Restoration (ha)', current: ha, target: 7700 },
+    { label:'Ranger Records', current: db.filter(r=>r.form_type==='ranger-patrol').length, target: 50 },
+    { label:'Livelihood Records', current: db.filter(r=>r.form_type==='livelihoods').length, target: 500 },
+    { label:'Crime Incidents', current: db.filter(r=>r.form_type==='wildlife-crime').length, target: 30 },
+  ];
+  destroyChart('progress');
+  charts['progress'] = new Chart(document.getElementById('chart-progress'), {
+    type:'bar',
+    data: {
+      labels: indicators.map(i=>i.label),
+      datasets: [
+        { label:'Current', data: indicators.map(i=>i.current), backgroundColor:'rgba(56,139,253,.7)', borderRadius:4 },
+        { label:'Target', data: indicators.map(i=>i.target), backgroundColor:'rgba(255,255,255,.1)', borderRadius:4 }
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11}}}},
+      scales:{ x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},
+               y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}} }
+    }
+  });
+
+  // Monthly submissions
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthly = Array(12).fill(0);
+  db.forEach(r => {
+    if (r.submitted_at) { const m = new Date(r.submitted_at).getMonth(); monthly[m]++; }
+  });
+  destroyChart('monthly');
+  charts['monthly'] = new Chart(document.getElementById('chart-monthly'), {
+    type:'line',
+    data: { labels: months, datasets:[{ label:'Submissions', data:monthly, borderColor:'var(--green)', backgroundColor:'rgba(63,185,80,.1)', tension:.4, fill:true, pointBackgroundColor:'var(--green)', pointRadius:3 }] },
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11}}}},
+      scales:{ x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},
+               y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}} }
+    }
+  });
+
+  // Gender chart
+  const trainRecs = db.filter(r=>r.form_type==='training');
+  const totalTr = trainRecs.reduce((a,r)=>a+(r.total||0),0);
+  const womenTr = trainRecs.reduce((a,r)=>a+(r.women||0),0);
+  const youthTr = trainRecs.reduce((a,r)=>a+(r.youth||0),0);
+  const ipTr    = trainRecs.reduce((a,r)=>a+(r.ip||0),0);
+  const otherTr = Math.max(0, totalTr - womenTr - ipTr);
+  destroyChart('gender');
+  charts['gender'] = new Chart(document.getElementById('chart-gender'), {
+    type:'doughnut',
+    data: { labels:['Women','Men/Other','Youth','IPs'], datasets:[{ data:[womenTr,otherTr,youthTr,ipTr], backgroundColor:['#a371f7','#388bfd','#3fb950','#e3b341'], borderColor:'#161b22', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:10},padding:8}}} }
+  });
+
+  // Crime chart
+  const crimeMonths = Array(12).fill(0);
+  db.filter(r=>r.form_type==='wildlife-crime').forEach(r => {
+    if (r.date) { const m = new Date(r.date).getMonth(); crimeMonths[m]++; }
+  });
+  destroyChart('crime');
+  charts['crime'] = new Chart(document.getElementById('chart-crime'), {
+    type:'bar',
+    data: { labels: months, datasets:[{ label:'Incidents', data:crimeMonths, backgroundColor:'rgba(248,81,73,.6)', borderRadius:4 }] },
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{labels:{color:'#8b949e',font:{size:11}}}},
+      scales:{ x:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},
+               y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}} }
+    }
+  });
+
+  // Forms pie
+  const formCounts = {};
+  db.forEach(r => { formCounts[r.form_type] = (formCounts[r.form_type]||0)+1; });
+  destroyChart('forms');
+  charts['forms'] = new Chart(document.getElementById('chart-forms'), {
+    type:'pie',
+    data: { labels: Object.keys(formCounts), datasets:[{ data:Object.values(formCounts), backgroundColor:['#388bfd','#3fb950','#e3b341','#f85149','#a371f7','#4BACC6','#58a6ff','#39d353','#ff7b72','#ffa657'], borderColor:'#161b22', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:true,
+      plugins:{legend:{position:'bottom',labels:{color:'#8b949e',font:{size:9},padding:6}}} }
+    });
+
+  // Indicator progress bars
+  const ipDiv = document.getElementById('indicator-progress');
+  const indList = [
+    { label:'1.1.1 CBOs with Governance Capacity', cur: cbos, tgt: 13, cls:'fill-blue' },
+    { label:'1.1.2 Members Trained', cur: db.filter(r=>r.form_type==='training').reduce((a,r)=>a+(r.total||0),0), tgt: 300, cls:'fill-blue' },
+    { label:'2.2.2 Rangers Trained', cur: db.filter(r=>r.form_type==='training' && r.topic==='Wildlife Crime / Ranger Skills').reduce((a,r)=>a+(r.total||0),0), tgt: 180, cls:'fill-green' },
+    { label:'2.3.1 Riparian Zone Restored (km)', cur: db.filter(r=>r.form_type==='restoration' && r.rest_type==='Riparian zone').reduce((a,r)=>a+(r.area_unit==='km'?r.area_value||0:0),0), tgt: 20, cls:'fill-green' },
+    { label:'2.3.2 Rangeland Restored (ha)', cur: db.filter(r=>r.form_type==='restoration' && r.rest_type==='Rangeland').reduce((a,r)=>a+(r.area_unit==='ha'?r.area_value||0:0),0), tgt: 7000, cls:'fill-green' },
+    { label:'3.1.2 People in Nature+ Production', cur: db.filter(r=>r.form_type==='livelihoods' && r.nbl_adopted?.includes('Yes')).length, tgt: 24000, cls:'fill-orange' },
+    { label:'3.3.2 Youth/Women with NBE Skills', cur: db.filter(r=>r.form_type==='training' && r.topic==='Enterprise / NBE Skills').reduce((a,r)=>a+(r.women||0)+(r.youth||0),0), tgt: 100, cls:'fill-orange' },
+  ];
+  ipDiv.innerHTML = indList.map(i => {
+    const pct = Math.min(100, Math.round((i.cur/i.tgt)*100));
+    return `<div class="prog-row">
+      <div class="prog-meta"><span>${i.label}</span><span>${i.cur} / ${i.tgt} (${pct}%)</span></div>
+      <div class="prog-bar"><div class="prog-fill ${i.cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+
+  // Recent records
+  const recent = [...db].sort((a,b)=>b.submitted_at?.localeCompare(a.submitted_at)).slice(0,8);
+  document.getElementById('recent-tbody').innerHTML = recent.map(r => `
+    <tr>
+      <td><span class="tag tag-${typeClass(r.form_type)}">${r.form_type}</span></td>
+      <td style="color:var(--text2)">${r.ecosystem||'—'}</td>
+      <td style="color:var(--text2)">${r.collector||'—'}</td>
+      <td style="font-size:11px;color:var(--text3);font-family:var(--mono)">${r.submitted_at ? r.submitted_at.slice(0,10) : '—'}</td>
+      <td><span class="tag ${r.synced ? 'tag-synced' : 'tag-pending'}">${r.synced ? '✓ synced' : '⏱ pending'}</span></td>
+    </tr>`).join('');
+}
+
+function typeClass(t) {
+  if (['governance','platform','nrgt'].includes(t)) return 'gov';
+  if (['wildlife-crime','imet','habitat'].includes(t)) return 'con';
+  if (['livelihoods'].includes(t)) return 'eco';
+  return 'impact';
+}
+
+// ═══════════════════════════════════════════════════
+//  DATABASE VIEW
+// ═══════════════════════════════════════════════════
+async function renderDatabase(data) {
+  const db = data || await getDB();
+  document.getElementById('dbCount').textContent = `${db.length} records`;
+  const tbody = document.getElementById('dbTbody');
+  tbody.innerHTML = db.length === 0
+    ? '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:30px">No records yet. Use the data collection forms to add records.</td></tr>'
+    : db.slice().reverse().map((r,i) => `
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${db.length-i}</td>
+      <td><span class="tag tag-${typeClass(r.form_type)}">${r.form_type}</span></td>
+      <td style="font-family:var(--mono);font-size:11px">${r.date || r.submitted_at?.slice(0,10) || '—'}</td>
+      <td style="color:var(--text2)">${r.ecosystem||'—'}</td>
+      <td style="color:var(--text2);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.key_display||'—'}</td>
+      <td style="color:var(--text2)">${r.collector||r.ranger||r.surveyor||r.assessor||'—'}</td>
+      <td><span class="tag ${r.synced?'tag-synced':'tag-pending'}">${r.synced?'✓ synced':'⏱ pending'}</span></td>
+      <td><button class="btn btn-danger btn-icon" style="padding:3px 8px;font-size:11px" onclick="deleteRecord('${r.id}')">✕</button></td>
+    </tr>`).join('');
+}
+
+async function filterDB() {
+  const search = document.getElementById('dbSearch').value.toLowerCase();
+  const formF  = document.getElementById('dbFilter').value;
+  const ecoF   = document.getElementById('dbEco').value;
+  let db = await getDB();
+  if (formF) db = db.filter(r=>r.form_type===formF);
+  if (ecoF)  db = db.filter(r=>r.ecosystem===ecoF);
+  if (search) db = db.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  renderDatabase(db);
+}
+
+function deleteRecord(id) {
+  const db = getDB().filter(r=>r.id!==id);
+  saveDB(db);
+  renderDatabase();
+  showToast('Record deleted', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+//  INDICATORS
+// ═══════════════════════════════════════════════════
+async function renderIndicators() {
+  document.getElementById('indicatorCards').innerHTML = '<div style="color:var(--text2);padding:20px">Loading indicators from Kobo…</div>';
+  const db = await getDB();
+  const defs = [
+    { so:'SO1', label:'1.1.1 CBOs with Governance Capacity', calc: ()=>new Set(db.filter(r=>r.form_type==='governance').map(r=>r.cbo)).size, tgt:13, unit:'CBOs', cls:'tag-gov' },
+    { so:'SO1', label:'1.1.2 CBO Members Trained (Total)', calc: ()=>db.filter(r=>r.form_type==='training').reduce((a,r)=>a+(r.total||0),0), tgt:300, unit:'people', cls:'tag-gov' },
+    { so:'SO1', label:'1.1.2 Women Trained', calc: ()=>db.filter(r=>r.form_type==='training').reduce((a,r)=>a+(r.women||0),0), tgt:120, unit:'women', cls:'tag-gov' },
+    { so:'SO1', label:'1.2.2 Coordinated Platform Actions', calc: ()=>db.filter(r=>r.form_type==='platform').reduce((a,r)=>a+(r.actions_agreed||0),0), tgt:30, unit:'actions', cls:'tag-gov' },
+    { so:'SO1', label:'1.3.1 People Trained on Human Rights', calc: ()=>db.filter(r=>r.form_type==='training'&&r.topic==='Human Rights / HRBA').reduce((a,r)=>a+(r.total||0),0), tgt:2000, unit:'people', cls:'tag-gov' },
+    { so:'SO2', label:'2.2.1 Joint Patrol Teams Established', calc: ()=>new Set(db.filter(r=>r.form_type==='ranger-patrol').map(r=>r.team)).size, tgt:2, unit:'teams', cls:'tag-con' },
+    { so:'SO2', label:'2.2.2 Rangers / Scouts Trained', calc: ()=>db.filter(r=>r.form_type==='training'&&(r.topic||'').includes('Ranger')).reduce((a,r)=>a+(r.total||0),0), tgt:180, unit:'rangers', cls:'tag-con' },
+    { so:'SO2', label:'2.2.3 Outpost Records Filed', calc: ()=>0, tgt:3, unit:'outposts', cls:'tag-con' },
+    { so:'SO2', label:'2.3.1 Riparian Zone Restored (km)', calc: ()=>db.filter(r=>r.form_type==='restoration'&&r.rest_type==='Riparian zone'&&r.area_unit==='km').reduce((a,r)=>a+(r.area_value||0),0), tgt:20, unit:'km', cls:'tag-con' },
+    { so:'SO2', label:'2.3.2 Rangeland Restored (ha)', calc: ()=>db.filter(r=>r.form_type==='restoration'&&r.rest_type==='Rangeland'&&r.area_unit==='ha').reduce((a,r)=>a+(r.area_value||0),0), tgt:7000, unit:'ha', cls:'tag-con' },
+    { so:'SO2', label:'2.3.3 Forest Restored (ha)', calc: ()=>db.filter(r=>r.form_type==='restoration'&&r.rest_type==='Degraded forest'&&r.area_unit==='ha').reduce((a,r)=>a+(r.area_value||0),0), tgt:700, unit:'ha', cls:'tag-con' },
+    { so:'SO3', label:'3.1.2 People in Nature+ Production', calc: ()=>db.filter(r=>r.form_type==='livelihoods'&&r.nbl_adopted?.includes('Yes')).length, tgt:24000, unit:'people', cls:'tag-eco' },
+    { so:'SO3', label:'3.1.3 Lead Farmers Trained', calc: ()=>db.filter(r=>r.form_type==='training'&&r.topic==='Sustainable Agriculture').reduce((a,r)=>a+(r.total||0),0), tgt:570, unit:'farmers', cls:'tag-eco' },
+    { so:'SO3', label:'3.2.1 People with NBL Options', calc: ()=>db.filter(r=>r.form_type==='livelihoods'&&r.nbl_adopted?.includes('Yes')).length, tgt:500, unit:'people', cls:'tag-eco' },
+    { so:'SO3', label:'3.3.2 Youth/Women with NBE Skills', calc: ()=>db.filter(r=>r.form_type==='training'&&r.topic==='Enterprise / NBE Skills').reduce((a,r)=>a+(r.women||0)+(r.youth||0),0), tgt:100, unit:'people', cls:'tag-eco' },
+  ];
+  const grouped = {};
+  defs.forEach(d => { if (!grouped[d.so]) grouped[d.so]={}; grouped[d.so][d.so]=grouped[d.so][d.so]||[]; grouped[d.so].items = grouped[d.so].items||[]; grouped[d.so].items.push(d); });
+
+  const container = document.getElementById('indicatorCards');
+  container.innerHTML = Object.entries(grouped).map(([so, g]) => `
+    <div class="card">
+      <div class="card-title">${so} Indicators</div>
+      ${g.items.map(d => {
+        const cur = Math.round(d.calc()*10)/10;
+        const pct = Math.min(100, Math.round(cur/d.tgt*100));
+        const cls = pct>=75?'fill-green':pct>=40?'fill-orange':'fill-blue';
+        return `<div class="prog-row">
+          <div class="prog-meta">
+            <span><span class="tag ${d.cls}" style="margin-right:6px">${d.so}</span>${d.label}</span>
+            <span>${cur} ${d.unit} / ${d.tgt} ${d.unit} &nbsp; <strong>${pct}%</strong></span>
+          </div>
+          <div class="prog-bar"><div class="prog-fill ${cls}" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join('')}
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  MAP
+// ═══════════════════════════════════════════════════
+async function renderMap() {
+  const db = await getDB();
+  const sites = [
+    { label:'Mau CFA Area', x:28, y:35, color:'var(--blue)', eco:'Mau Forest' },
+    { label:'Upper Mau WRUA', x:32, y:42, color:'var(--blue)', eco:'Mau Forest' },
+    { label:'Mara Corridor', x:20, y:55, color:'var(--blue)', eco:'Mau Forest' },
+    { label:'Tsavo East', x:72, y:48, color:'var(--green)', eco:'Tsavo' },
+    { label:'Tsavo West', x:62, y:55, color:'var(--green)', eco:'Tsavo' },
+    { label:'Kimana', x:58, y:40, color:'var(--green)', eco:'Tsavo' },
+    { label:'Chyulu Hills', x:65, y:45, color:'var(--green)', eco:'Tsavo' },
+    { label:'Taita Hills', x:70, y:62, color:'var(--orange)', eco:'Tsavo' },
+  ];
+  const dotsDiv = document.getElementById('mapDots');
+  dotsDiv.innerHTML = sites.map(s => {
+    const count = db.filter(r=>r.ecosystem===s.eco).length;
+    return `<div class="map-dot" style="left:${s.x}%;top:${s.y}%;color:${s.color};background:${s.color}">
+      <div class="map-tooltip">${s.label} · ${count} records</div>
+    </div>`;
+  }).join('');
+
+  const statsDiv = document.getElementById('mapStats');
+  const mauCount = db.filter(r=>r.ecosystem==='Mau Forest').length;
+  const tsavoCount = db.filter(r=>r.ecosystem==='Tsavo').length;
+  statsDiv.innerHTML = [
+    { label:'Mau Forest Records', val:mauCount, cls:'blue' },
+    { label:'Tsavo Records', val:tsavoCount, cls:'green' },
+    { label:'Total Sites Active', val: new Set(db.map(r=>r.cbo||r.site||r.village||r.location).filter(Boolean)).size, cls:'orange' },
+  ].map(s=>`<div class="stat ${s.cls}"><div class="val">${s.val}</div><div class="lbl">${s.label}</div></div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  OFFLINE QUEUE
+// ═══════════════════════════════════════════════════
+function renderQueue() {
+  const q = getQueue();
+  document.getElementById('queueList').innerHTML = q.length === 0
+    ? '<div class="alert alert-success"><span>✓</span> Queue is empty — all records are synced.</div>'
+    : q.map(r=>`
+      <div class="queue-item">
+        <span class="tag tag-${typeClass(r.form_type)}" style="width:100px;text-align:center">${r.form_type}</span>
+        <div class="qi-info">
+          <div class="qi-form">${r.key_display||r.ecosystem||'Record'}</div>
+          <div class="qi-time">${r.submitted_at?.slice(0,19).replace('T',' ')||'—'}</div>
+        </div>
+        <span class="tag tag-pending">⏱ pending</span>
+      </div>`).join('');
+  updateQueueBadge();
+}
+
+function updateQueueBadge() {
+  const q = getQueue();
+  const badge = document.getElementById('queueBadge');
+  const pbadge = document.getElementById('pendingBadge');
+  badge.textContent = q.length;
+  if (q.length > 0) {
+    pbadge.style.display = 'inline';
+    pbadge.textContent = `${q.length} pending`;
+  } else {
+    pbadge.style.display = 'none';
+  }
+}
+
+async function syncNow() {
+  if (!navigator.onLine) { showToast('Still offline — cannot sync with Kobo', 'error'); return; }
+  showToast('⟳ Fetching latest data from Kobo…', 'info');
+  try {
+    await getDB(true); // force cache refresh
+    localStorage.setItem('sok_last_sync', new Date().toLocaleString());
+    // Re-render the active view
+    const active = document.querySelector('.view.active');
+    if (active) {
+      const id = active.id.replace('view-','');
+      if (id==='dashboard')     await renderDashboard();
+      if (id==='database')      await renderDatabase();
+      if (id==='indicators')    await renderIndicators();
+      if (id==='map')           await renderMap();
+    }
+    updateQueueBadge();
+    showToast('✓ Kobo data refreshed successfully', 'success');
+  } catch(e) {
+    showToast('⚠ Sync failed — check connection', 'error');
+  }
+}
+
+function clearQueue() {
+  if (!confirm('Clear all pending records from the sync queue? (Records already saved to database will not be deleted)')) return;
+  saveQueue([]);
+  updateQueueBadge();
+  renderQueue();
+  showToast('Queue cleared', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════
+async function renderSettings() {
+  const s = getSettings();
+  if (s.name) document.getElementById('set-name').value = s.name;
+  if (s.org)  document.getElementById('set-org').value = s.org;
+  if (s.eco)  document.getElementById('set-eco').value = s.eco;
+  if (s.role) document.getElementById('set-role').value = s.role;
+  const db = await getDB();
+  document.getElementById('storageInfo').textContent = `${db.length} records from Kobo + ${getQueue().length} local pending`;
+  document.getElementById('lastSync').textContent = localStorage.getItem('sok_last_sync') || 'Never';
+}
+
+function saveSettings() {
+  const s = { name: v('set-name'), org: v('set-org'), eco: v('set-eco'), role: v('set-role') };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  showToast('Settings saved', 'success');
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════
+async function exportCSV() {
+  const db = await getDB();
+  if (!db.length) { showToast('No records to export', 'info'); return; }
+  const allKeys = [...new Set(db.flatMap(r=>Object.keys(r)))];
+  const csv = [allKeys.join(','), ...db.map(r=>allKeys.map(k=>JSON.stringify(r[k]??'')).join(','))].join('\n');
+  download('SOK_MIS_Export.csv', csv, 'text/csv');
+}
+async function exportJSON() {
+  download('SOK_MIS_Export.json', JSON.stringify(await getDB(),null,2), 'application/json');
+}
+function download(filename, data, mime) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data],{type:mime}));
+  a.download = filename; a.click();
+}
+function clearAllData() {
+  if (!confirm('Clear all local cache and pending records? (Kobo submissions are not affected)')) return;
+  saveDB([]); saveQueue([]);
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(CACHE_TS_KEY);
+  _dbCache = null; _dbCacheTs = 0;
+  updateQueueBadge();
+  renderSettings();
+  showToast('Local cache cleared — will re-fetch from Kobo on next load', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+//  SEED / DEMO DATA
+// ═══════════════════════════════════════════════════
+function loadSeedData() {
+  const today = new Date();
+  const d = (offset=0) => { const dt=new Date(today); dt.setDate(dt.getDate()-offset); return dt.toISOString().slice(0,10); };
+  const seed = [
+    { form_type:'governance', date:d(5), ecosystem:'Mau Forest', cbo:'Mau CFA #1', cbo_type:'CFA', collector:'Jane Wanjiru', org:'WWF Kenya', total_members:120, women_members:55, youth_members:32, ip_members:8, women_board_pct:44, youth_board_pct:17, nrgt_score:62, mgmt_plan_status:'In progress', trained:'Yes – this reporting period', notes:'Active CBO with improving governance', key_display:'Mau CFA #1 — NRGT: 62%' },
+    { form_type:'governance', date:d(10), ecosystem:'Tsavo', cbo:'Kimana Conservancy', cbo_type:'Conservancy', collector:'Peter Mutua', org:'KWCA', total_members:85, women_members:20, youth_members:12, ip_members:0, women_board_pct:24, youth_board_pct:4, nrgt_score:48, mgmt_plan_status:'Draft completed', trained:'Yes – previously', notes:'Needs support on financial management', key_display:'Kimana Conservancy — NRGT: 48%' },
+    { form_type:'governance', date:d(3), ecosystem:'Mau Forest', cbo:'Upper Mau WRUA', cbo_type:'WRUA', collector:'Jane Wanjiru', org:'WWF Kenya', total_members:95, women_members:46, youth_members:28, ip_members:15, women_board_pct:49, youth_board_pct:29, nrgt_score:71, mgmt_plan_status:'Under implementation', trained:'Yes – this reporting period', notes:'Strong women leadership', key_display:'Upper Mau WRUA — NRGT: 71%' },
+    { form_type:'training', date:d(7), topic:'Inclusive Governance', indicator:'1.1.2 CBO Members Trained', ecosystem:'Mau Forest', venue:'Nakuru Training Centre', org:'WWF Kenya', total:32, women:15, youth:10, ip:4, pre_score:42, post_score:74, notes:'Good knowledge improvement observed', key_display:'Inclusive Governance — 32 participants' },
+    { form_type:'training', date:d(14), topic:'Human Rights / HRBA', indicator:'1.3.1 Human Rights Training', ecosystem:'Tsavo', venue:'Voi Community Hall', org:'KWCA', total:45, women:20, youth:18, ip:2, pre_score:38, post_score:71, notes:'Rangers engaged well on rights issues', key_display:'Human Rights / HRBA — 45 participants' },
+    { form_type:'training', date:d(21), topic:'Wildlife Crime / Ranger Skills', indicator:'2.2.2 Rangers Trained', ecosystem:'Tsavo', venue:'Tsavo East KWS Base', org:'TTWCA', total:28, women:6, youth:12, ip:0, pre_score:55, post_score:82, notes:'Improved patrol techniques', key_display:'Wildlife Crime / Ranger Skills — 28 participants' },
+    { form_type:'training', date:d(30), topic:'Sustainable Agriculture', indicator:'3.1.2 Nature+ Production', ecosystem:'Mau Forest', venue:'Bomet Field Station', org:'WWF Kenya', total:60, women:32, youth:25, ip:8, pre_score:30, post_score:65, notes:'High demand for follow-up training', key_display:'Sustainable Agriculture — 60 participants' },
+    { form_type:'training', date:d(35), topic:'Enterprise / NBE Skills', indicator:'3.3.2 NBE Skills', ecosystem:'Tsavo', venue:'Taveta Town Hall', org:'KWCA', total:25, women:16, youth:18, ip:1, pre_score:28, post_score:68, notes:'Women-led honey enterprise group very active', key_display:'Enterprise / NBE Skills — 25 participants' },
+    { form_type:'wildlife-crime', date:d(2), ecosystem:'Mau Forest', incident_type:'Illegal logging', location:'Njoro Block', lat:-0.38, lon:35.72, species:'', carcasses:0, logged_trees:12, charcoal_kilns:0, illegal_ha:0, action:'Patrol intervention', ranger:'Samuel Kipchoge', notes:'Chain saws confiscated', key_display:'Illegal logging — Njoro Block' },
+    { form_type:'wildlife-crime', date:d(4), ecosystem:'Tsavo', incident_type:'Wildlife poaching', location:'Tsavo East Northern', lat:-2.85, lon:38.60, species:'Elephant', carcasses:1, logged_trees:0, charcoal_kilns:0, illegal_ha:0, action:'Arrest made', ranger:'Moses Kamau', notes:'One suspect arrested', key_display:'Wildlife poaching — Tsavo East Northern' },
+    { form_type:'wildlife-crime', date:d(8), ecosystem:'Mau Forest', incident_type:'Charcoal production', location:'South Mau', lat:-0.52, lon:35.61, species:'', carcasses:0, logged_trees:0, charcoal_kilns:4, illegal_ha:0, action:'Reported to authorities', ranger:'Samuel Kipchoge', notes:'4 kilns destroyed', key_display:'Charcoal production — South Mau' },
+    { form_type:'restoration', date:d(6), ecosystem:'Mau Forest', rest_type:'Riparian zone', site:'Njoro River Bank', lat:-0.40, lon:35.73, area_value:3.2, area_unit:'km', seedlings:1200, species:'Croton, Dombeya', veg_cover_pct:22, survival_pct:78, community_workers:18, women_workers:9, surveyor:'Grace Otieno', notes:'Good germination, need deer fencing', key_display:'Njoro River Bank — 3.2 km Riparian zone' },
+    { form_type:'restoration', date:d(12), ecosystem:'Tsavo', rest_type:'Rangeland', site:'Amboseli Buffer Zone', lat:-2.65, lon:37.25, area_value:850, area_unit:'ha', seedlings:0, species:'Native grass mix', veg_cover_pct:15, survival_pct:65, community_workers:35, women_workers:14, surveyor:'David Omondi', notes:'Good rainfall this season supporting regrowth', key_display:'Amboseli Buffer Zone — 850 ha Rangeland' },
+    { form_type:'restoration', date:d(18), ecosystem:'Mau Forest', rest_type:'Degraded forest', site:'Eastern Mau Block', lat:-0.45, lon:35.80, area_value:120, area_unit:'ha', seedlings:4800, species:'Podo, Cedar, Grevillea', veg_cover_pct:35, survival_pct:82, community_workers:22, women_workers:10, surveyor:'Grace Otieno', notes:'Excellent community engagement', key_display:'Eastern Mau Block — 120 ha Degraded forest' },
+    { form_type:'ranger-patrol', date:d(1), ecosystem:'Tsavo', team:'Tsavo North Alpha', lead_ranger:'Moses Kamau', team_size:6, women_on_patrol:1, duration_hrs:8, area_km2:24, hwc_incidents:2, hwc_type:'Elephant crop raid', crimes_detected:1, arrests:0, notes:'Two elephant crop raids near Voi Settlement', key_display:'Tsavo North Alpha — HWC: 2, Crimes: 1' },
+    { form_type:'ranger-patrol', date:d(3), ecosystem:'Mau Forest', team:'Mau Forest Patrol A', lead_ranger:'Samuel Kipchoge', team_size:5, women_on_patrol:0, duration_hrs:6, area_km2:15, hwc_incidents:0, hwc_type:'None', crimes_detected:2, arrests:1, notes:'Charcoal kiln found and destroyed', key_display:'Mau Forest Patrol A — HWC: 0, Crimes: 2' },
+    { form_type:'livelihoods', date:d(9), ecosystem:'Mau Forest', village:'Njoro Village', gender:'Female', age_group:'18–35 (Youth)', ip:'No', hh_type:'Female-headed HH', fcs_score:48, livelihood:'Commercial farming', nbl_adopted:'Yes – since project', green_job:'No', value_chain:'Horticulture', income_kes:8500, training_received:'Yes – agriculture', notes:'Started selling vegetables to Nakuru market', key_display:'Njoro Village — FCS: 48, Female' },
+    { form_type:'livelihoods', date:d(11), ecosystem:'Tsavo', village:'Voi Township', gender:'Female', age_group:'18–35 (Youth)', ip:'No', hh_type:'Female-headed HH', fcs_score:42, livelihood:'Eco-tourism', nbl_adopted:'Yes – since project', green_job:'Yes', value_chain:'Eco-tourism', income_kes:12000, training_received:'Yes – enterprise/NBE', notes:'Running community campsite', key_display:'Voi Township — FCS: 42, Female' },
+    { form_type:'livelihoods', date:d(15), ecosystem:'Mau Forest', village:'Bomet Community', gender:'Male', age_group:'36–59', ip:'No', hh_type:'Male-headed HH', fcs_score:55, livelihood:'Livestock', nbl_adopted:'Yes – since project', green_job:'No', value_chain:'Livestock', income_kes:15000, training_received:'Yes – governance', notes:'Active in WRUA, improved pasture management', key_display:'Bomet Community — FCS: 55, Male' },
+    { form_type:'platform', date:d(4), platform:'Mau-Mara Ecosystem Platform', ecosystem:'Mau Forest', total_attendees:24, women:8, youth:5, ip:3, actions_agreed:4, collector:'Jane Wanjiru', notes:'Agreed on joint patrol protocol and shared management plan timeline', key_display:'Mau-Mara Ecosystem Platform — 24 attendees, 4 actions' },
+    { form_type:'platform', date:d(20), platform:'Tsavo Ecosystem Platform', ecosystem:'Tsavo', total_attendees:31, women:10, youth:6, ip:0, actions_agreed:3, collector:'Peter Mutua', notes:'Finalized conservancy zoning approach', key_display:'Tsavo Ecosystem Platform — 31 attendees, 3 actions' },
+  ];
+  seed.forEach(r => {
+    r.id = Date.now() + Math.random().toString(36).slice(2,6);
+    r.submitted_at = new Date(Date.now() - Math.random()*30*24*3600*1000).toISOString();
+    r.synced = true;
+  });
+  const db = getDB();
+  saveDB([...db, ...seed]);
+  showToast(`✓ ${seed.length} demo records loaded`, 'success');
+  renderDashboard();
+}
+
+function loadSeedData() {
+  showToast('ℹ Data now comes live from Kobo. Use KoboCollect or Kobo web forms to submit records — they will appear here automatically.', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+//  ONLINE / OFFLINE
+// ═══════════════════════════════════════════════════
+function updateOnlineStatus() {
+  const online = navigator.onLine;
+  document.getElementById('syncDot').className = 'sync-dot' + (online ? '' : ' offline');
+  document.getElementById('syncLabel').textContent = online ? 'Kobo Live' : 'Offline';
+  if (online) { setTimeout(() => syncNow(), 1500); }
+  updateOfflineAlerts();
+}
+function updateOfflineAlerts() {
+  document.querySelectorAll('[id^="offlineAlert-"]').forEach(el => {
+    el.style.display = navigator.onLine ? 'none' : 'flex';
+  });
+}
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ═══════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 4000);
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+updateOnlineStatus();
+updateQueueBadge();
+renderDashboard();
+
+// Auto-refresh Kobo data every 5 minutes when dashboard is active
+setInterval(() => {
+  if (document.getElementById('view-dashboard').classList.contains('active')) {
+    _dbCache = null; // invalidate cache to force fresh fetch
+    renderDashboard();
+  }
+}, 5 * 60 * 1000);
+
+// Set today's date on all date fields
+document.querySelectorAll('input[type="date"]').forEach(el => {
+  el.value = new Date().toISOString().slice(0,10);
+});
+</script>
+</body>
+</html>
